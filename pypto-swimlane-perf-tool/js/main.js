@@ -59,6 +59,15 @@ class App {
 
     this.coreTypeFilter = document.getElementById('coreTypeFilter');
     this.coreSearch = document.getElementById('coreSearch');
+
+    // 计算图面板
+    this.cgPanel     = document.getElementById('computeGraphPanel');
+    this.cgPanelClose = document.getElementById('cgPanelClose');
+    this.cgPanelGraph = document.getElementById('cgPanelGraph');
+    this.cgPanelInfo  = document.getElementById('cgPanelInfo');
+    this.cgPanelTaskName = document.getElementById('cgPanelTaskName');
+    this.cgPanelSummary  = document.getElementById('cgPanelSummary');
+    this.cgPanelResize   = document.getElementById('cgPanelResize');
   }
 
   _initSwimlane() {
@@ -66,6 +75,71 @@ class App {
     this.swimlane.onCoreClick = (coreName) => {
       this._onCoreClick(coreName);
     };
+    this.swimlane.onEventClick = (event, relatedEvents) => {
+      this._onEventClick(event, relatedEvents);
+    };
+    this.swimlane.onOpenComputeGraph = (event) => {
+      this._openComputeGraph(event);
+    };
+    this._initComputeGraphPanel();
+  }
+
+  _initComputeGraphPanel() {
+    // 关闭按钮
+    this.cgPanelClose?.addEventListener('click', () => this._closeComputeGraph());
+
+    // 拖拽调整面板高度
+    if (this.cgPanelResize && this.cgPanel) {
+      let startY = 0, startH = 0, dragging = false;
+      this.cgPanelResize.addEventListener('mousedown', (e) => {
+        dragging = true;
+        startY = e.clientY;
+        startH = this.cgPanel.offsetHeight;
+        e.preventDefault();
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const delta = startY - e.clientY;
+        const newH = Math.max(200, Math.min(window.innerHeight * 0.8, startH + delta));
+        this.cgPanel.style.height = newH + 'px';
+      });
+      window.addEventListener('mouseup', () => { dragging = false; });
+    }
+  }
+
+  _openComputeGraphFromDetail() {
+    if (this._currentDetailEvent) this._openComputeGraph(this._currentDetailEvent);
+  }
+
+  _openComputeGraph(event) {
+    if (!this.cgPanel) return;
+    const op = getEventOpType(event);
+    const taskName = event.name || op;
+
+    // 更新标题
+    if (this.cgPanelTaskName) this.cgPanelTaskName.textContent = taskName;
+
+    // 内联摘要（header 右侧）
+    if (this.cgPanelSummary) {
+      const dur = (event.dur || 0).toFixed(3);
+      const taskId = event.args?.taskId || event.args?.TaskId || '';
+      let s = `<span class="cg-si-item"><span class="cg-si-lbl">耗时</span><span class="cg-si-val">${dur} μs</span></span>`;
+      if (taskId) s += `<span class="cg-si-item"><span class="cg-si-lbl">TaskID</span><span class="cg-si-val">${taskId}</span></span>`;
+      this.cgPanelSummary.innerHTML = s;
+    }
+
+    // 左侧详细摘要
+    if (this.cgPanelInfo) renderTaskSummary(this.cgPanelInfo, event);
+
+    // 主图区
+    if (this.cgPanelGraph) renderComputeGraph(this.cgPanelGraph, event);
+
+    // 打开面板
+    this.cgPanel.classList.add('open');
+  }
+
+  _closeComputeGraph() {
+    this.cgPanel?.classList.remove('open');
   }
 
   _bindEvents() {
@@ -454,6 +528,92 @@ class App {
       panel.style.display = 'block';
       panel.innerHTML = this._buildCoreDetailHTML(metrics);
     }
+  }
+
+  _onEventClick(event, relatedEvents) {
+    if (!event) {
+      const panel = document.getElementById('coreDetailPanel');
+      if (panel) panel.style.display = 'none';
+      return;
+    }
+
+    this._currentDetailEvent = event;
+    const panel = document.getElementById('coreDetailPanel');
+    if (panel) {
+      panel.style.display = 'block';
+      panel.innerHTML = this._buildEventDetailHTML(event, relatedEvents);
+    }
+  }
+
+  _buildEventDetailHTML(e, related) {
+    const op = getEventOpType(e);
+    const taskId = e.args?.taskId || e.args?.TaskId || 'N/A';
+    const coreName = this.parsedData.threadMap.get(e.tid) || `Core_${e.tid}`;
+
+    let html = `
+      <div class="core-detail event-detail">
+        <div class="cd-header">
+          <span class="core-type-badge type-${getCoreType(coreName)}">${getCoreType(coreName)}</span>
+          <strong>${e.name || op}</strong>
+          <span class="task-id-badge">Task ID: ${taskId}</span>
+          <button class="tt-cg-btn" style="margin-left:auto;margin-right:8px;width:auto;display:inline-flex;align-items:center;gap:4px;" onclick="app._openComputeGraphFromDetail()">⊞ 查看计算图</button>
+          <button class="close-btn" onclick="document.getElementById('coreDetailPanel').style.display='none'">✕</button>
+        </div>
+        <div class="cd-metrics">
+          <div class="cd-metric">
+            <span class="cd-label">核心</span>
+            <span class="cd-value">${coreName}</span>
+          </div>
+          <div class="cd-metric">
+            <span class="cd-label">开始时间</span>
+            <span class="cd-value">${e.ts.toFixed(1)} μs</span>
+          </div>
+          <div class="cd-metric">
+            <span class="cd-label">持续时间</span>
+            <span class="cd-value">${(e.dur || 0).toFixed(3)} μs</span>
+          </div>
+          <div class="cd-metric">
+            <span class="cd-label">操作类型</span>
+            <span class="cd-value">${op}</span>
+          </div>
+        </div>
+    `;
+
+    if (related && related.length > 0) {
+      html += `
+        <div class="cd-section-title">关联任务 (${related.length})</div>
+        <div class="related-tasks-list">
+          ${related.map(r => {
+            const rCore = this.parsedData.threadMap.get(r.tid) || `Core_${r.tid}`;
+            return `
+              <div class="cd-op-row related-task-item" onclick="app._jumpToEvent('${rCore}', ${r.ts})">
+                <span class="cd-op-name">${r.name || getEventOpType(r)}</span>
+                <span class="cd-op-count">${rCore}</span>
+                <span class="cd-op-time">${(r.dur || 0).toFixed(2)} μs</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    } else {
+      html += `<div class="cd-section-title">无显式关联任务</div>`;
+    }
+
+    html += `</div>`;
+    return html;
+  }
+
+  _jumpToEvent(coreName, ts) {
+    this.swimlane.scrollToCore(coreName);
+    setTimeout(() => {
+      const relativeTs = ts - this.parsedData.timeRange.start;
+      const viewW = this.swimlane._getViewportW();
+      const targetX = relativeTs * this.swimlane.xScale;
+      const vp = this.swimlane._viewport();
+      if (vp) vp.scrollLeft = Math.max(0, targetX - viewW / 2);
+      this.swimlane._render();
+      this.swimlane._renderLabels();
+    }, 50);
   }
 
   _buildCoreDetailHTML(m) {

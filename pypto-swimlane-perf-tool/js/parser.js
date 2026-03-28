@@ -23,33 +23,143 @@ function parseTraceJSON(data) {
   // 2. 提取所有执行事件 (X 类型事件)
   const execEvents = events.filter(e => e.ph === 'X');
 
-  // 3. 提取计数器事件 (C 类型事件, 内存使用等)
+  // 3. 提取所有关联关系事件 (Flow events: s, t, f)
+  const flowEvents = events.filter(e => e.ph === 's' || e.ph === 't' || e.ph === 'f');
+
+  // 4. 提取计数器事件 (C 类型事件, 内存使用等)
   const counterEvents = events.filter(e => e.ph === 'C');
 
-  // 4. 按核心分组执行事件
+  // 5. 按核心分组执行事件
   const coreEvents = groupEventsByCore(execEvents, threadMap);
 
-  // 5. 计算时间范围
+  // 6. 计算时间范围
   const timeRange = computeTimeRange(execEvents);
 
-  // 6. 提取操作类型
+  // 7. 提取操作类型
   const operationTypes = extractOperationTypes(execEvents);
 
-  // 7. 计算操作颜色映射
+  // 8. 计算操作颜色映射
   const colorMap = buildColorMap(operationTypes);
+
+  // 9. 构建任务索引和关系网
+  const taskIndex = buildTaskIndex(execEvents);
+  const relations = buildRelations(execEvents, flowEvents);
 
   return {
     threadMap,
     execEvents,
+    flowEvents,
     counterEvents,
     coreEvents,
     timeRange,
     operationTypes,
     colorMap,
+    taskIndex,
+    relations,
     totalEventCount: execEvents.length,
     coreCount: coreEvents.size,
   };
 }
+
+/**
+ * 构建任务索引 (按 taskId 和 name)
+ */
+function buildTaskIndex(execEvents) {
+  const index = {
+    byTaskId: new Map(),
+    byName: new Map()
+  };
+
+  execEvents.forEach(e => {
+    const taskId = e.args?.taskId || e.args?.TaskId;
+    if (taskId !== undefined) {
+      if (!index.byTaskId.has(taskId)) index.byTaskId.set(taskId, []);
+      index.byTaskId.get(taskId).push(e);
+    }
+    
+    if (e.name) {
+      if (!index.byName.has(e.name)) index.byName.set(e.name, []);
+      index.byName.get(e.name).push(e);
+    }
+  });
+
+  return index;
+}
+
+/**
+ * 构建任务间的显式关联关系 (解析 Chrome Trace 的 flow events: s 和 f)
+ */
+function buildRelations(execEvents, flowEvents) {
+  // src -> Set of dst
+  const relations = new Map();
+
+  // 1. 根据 id 组合 s (start) 和 f (finish) 事件
+  const flowMap = new Map(); // id -> { s: event, f: event }
+  flowEvents.forEach(e => {
+    if (e.id === undefined) return;
+    if (!flowMap.has(e.id)) flowMap.set(e.id, {});
+    
+    if (e.ph === 's') {
+      flowMap.get(e.id).s = e;
+    } else if (e.ph === 'f') {
+      flowMap.get(e.id).f = e;
+    }
+  });
+
+  // 2. 按 tid 分组 X 事件，以便快速查找
+  const xByTid = new Map();
+  execEvents.forEach(x => {
+    if (!xByTid.has(x.tid)) xByTid.set(x.tid, []);
+    xByTid.get(x.tid).push(x);
+  });
+  
+  // 3. 将 flow 事件关联回具体的 X 事件
+  flowMap.forEach(flow => {
+    const sEvent = flow.s;
+    const fEvent = flow.f;
+    if (!sEvent || !fEvent) return; // 缺少成对的 s 或 f
+
+    const srcTidEvents = xByTid.get(sEvent.tid);
+    const dstTidEvents = xByTid.get(fEvent.tid);
+    if (!srcTidEvents || !dstTidEvents) return;
+
+    // 寻找 source X event (结束时间最接近 s.ts)
+    let srcX = null;
+    let minSrcDist = Infinity;
+    for (const x of srcTidEvents) {
+      const endTs = x.ts + (x.dur || 0);
+      const dist = Math.min(Math.abs(x.ts - sEvent.ts), Math.abs(endTs - sEvent.ts));
+      if (dist < minSrcDist) {
+        minSrcDist = dist;
+        srcX = x;
+      }
+    }
+
+    // 寻找 destination X event (开始时间最接近 f.ts)
+    let dstX = null;
+    let minDstDist = Infinity;
+    for (const x of dstTidEvents) {
+      const dist = Math.abs(x.ts - fEvent.ts);
+      if (dist < minDstDist) {
+        minDstDist = dist;
+        dstX = x;
+      }
+    }
+
+    // 建立关联
+    if (srcX && dstX && minSrcDist < 100 && minDstDist < 100) { // 设置一个合理的最大偏差容忍度
+      if (!relations.has(srcX)) relations.set(srcX, new Set());
+      relations.get(srcX).add(dstX);
+      
+      // 同时也建立反向关联，以便点击任意一个都能看到对方
+      if (!relations.has(dstX)) relations.set(dstX, new Set());
+      relations.get(dstX).add(srcX);
+    }
+  });
+
+  return relations;
+}
+
 
 /**
  * 构建线程 ID → 核心名称映射

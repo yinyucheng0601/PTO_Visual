@@ -300,11 +300,33 @@
 <!-- 错误提示 -->
 <div id="errorToast" style="display:none"></div>
 
+<!-- ===== 计算图面板 (从底部滑出) ===== -->
+<div id="computeGraphPanel" class="cg-panel">
+  <div class="cg-panel-resize" id="cgPanelResize"></div>
+  <div class="cg-panel-header">
+    <div class="cg-panel-title">
+      <span class="cg-panel-icon">⊞</span>
+      <span id="cgPanelTaskName">计算图</span>
+    </div>
+    <div class="cg-panel-header-right">
+      <div id="cgPanelSummary" class="cg-panel-summary-inline"></div>
+      <button class="cg-panel-close" id="cgPanelClose" title="关闭">✕</button>
+    </div>
+  </div>
+  <div class="cg-panel-body">
+    <div class="cg-panel-info" id="cgPanelInfo"></div>
+    <div class="cg-panel-graph" id="cgPanelGraph">
+      <div class="cg-empty">选择任务后显示计算图</div>
+    </div>
+  </div>
+</div>
+
 <!-- 脚本 (顺序重要) -->
 <script src="js/parser.js"></script>
 <script src="js/analyzer.js"></script>
 <script src="js/swimlane.js"></script>
 <script src="js/charts.js"></script>
+<script src="js/compute-graph.js"></script>
 <script src="js/main.js"></script>
 
 </body>

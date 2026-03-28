@@ -345,11 +345,10 @@ html, body {
   position: relative;
 }
 
-/* 单一视口: 仅纵向滚动; 横向由 JS 控制 (xOffset + canvas 宽度) */
+/* 单一视口: 横纵均可滚动（水平边界 = canvas 宽度 = 执行总时长×xScale） */
 .swimlane-viewport {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: auto;
   position: relative;
   background: #0F172A;
 }
@@ -995,6 +994,60 @@ html, body {
   overflow-x: auto;
 }
 
+/* ---- 任务详情与关联关系 ---- */
+.task-id-badge {
+  font-size: 10px;
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--accent-blue);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  margin-left: 8px;
+}
+
+.related-tasks-list {
+  max-height: 120px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+}
+
+.related-task-item {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.related-task-item:last-child {
+  border-bottom: none;
+}
+
+.related-task-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.related-task-item .cd-op-name {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.related-task-item .cd-op-count {
+  color: var(--accent-green);
+  width: auto;
+  min-width: 60px;
+}
+
+.related-task-item .cd-op-time {
+  color: var(--text-secondary);
+}
+
+/* 调整核心详情面板高度 */
+#coreDetailPanel {
+  max-height: 250px;
+}
+
 .core-table {
   width: 100%;
   border-collapse: collapse;
@@ -1199,6 +1252,216 @@ html, body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* ---- 计算图面板 ---- */
+.cg-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 320px;
+  background: var(--bg-secondary);
+  border-top: 2px solid #8B5CF6;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cg-panel.open {
+  transform: translateY(0);
+}
+
+/* 拖拽调整高度的把手 */
+.cg-panel-resize {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+  z-index: 10;
+}
+
+.cg-panel-resize::after {
+  content: '';
+  display: block;
+  margin: 3px auto 0;
+  width: 40px;
+  height: 3px;
+  border-radius: 2px;
+  background: #8B5CF6;
+  opacity: 0.5;
+}
+
+.cg-panel-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(139, 92, 246, 0.08);
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.cg-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #C4B5FD;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.cg-panel-icon {
+  font-size: 15px;
+}
+
+#cgPanelTaskName {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.cg-panel-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.cg-panel-summary-inline {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.cg-panel-summary-inline .cg-si-item {
+  display: flex;
+  gap: 4px;
+}
+
+.cg-panel-summary-inline .cg-si-lbl {
+  color: var(--text-muted);
+}
+
+.cg-panel-summary-inline .cg-si-val {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.cg-panel-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.cg-panel-close:hover {
+  color: #EF4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.cg-panel-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cg-panel-info {
+  width: 200px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  padding: 10px;
+  border-right: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.cg-panel-graph {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.cg-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  align-self: center;
+}
+
+/* 计算图摘要列表 */
+.cg-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cg-summary-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cg-lbl {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.cg-val {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.cg-val.cg-op {
+  color: #C4B5FD;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* tooltip 中的"查看计算图"按钮 */
+.tt-cg-btn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 5px 8px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: 4px;
+  color: #C4B5FD;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.tt-cg-btn:hover {
+  background: rgba(139, 92, 246, 0.3);
+}
 
 /* ---- 响应式 ---- */
 @media (max-width: 1100px) {
