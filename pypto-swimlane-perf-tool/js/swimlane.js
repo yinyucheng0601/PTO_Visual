@@ -28,6 +28,18 @@ const SWIMLANE_CONFIG = {
   BOTTLENECK_ROW_BG: 'rgba(239, 68, 68, 0.12)',
 };
 
+// 分组颜色板（背景填充 / 边框描边 / 标签文字）
+const GROUP_PALETTE = [
+  { bg: 'rgba(59,130,246,0.06)',  border: 'rgba(59,130,246,0.55)',  text: '#60A5FA' },
+  { bg: 'rgba(16,185,129,0.06)', border: 'rgba(16,185,129,0.55)', text: '#34D399' },
+  { bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.55)', text: '#FCD34D' },
+  { bg: 'rgba(239,68,68,0.06)',  border: 'rgba(239,68,68,0.55)',  text: '#FCA5A5' },
+  { bg: 'rgba(139,92,246,0.06)', border: 'rgba(139,92,246,0.55)', text: '#C4B5FD' },
+  { bg: 'rgba(236,72,153,0.06)', border: 'rgba(236,72,153,0.55)', text: '#F9A8D4' },
+  { bg: 'rgba(34,211,238,0.06)', border: 'rgba(34,211,238,0.55)', text: '#67E8F9' },
+  { bg: 'rgba(251,146,60,0.06)', border: 'rgba(251,146,60,0.55)', text: '#FDBA74' },
+];
+
 class SwimlaneRenderer {
   constructor(container, labelContainer) {
     this.container = container;       // #swimlaneCanvas div
@@ -67,6 +79,10 @@ class SwimlaneRenderer {
     this.showAIV = true;
     this.showBubbles = true;
     this.highlightBottlenecks = true;
+    this.showGroups = true;
+
+    // 分组数据
+    this.groupBands = [];
 
     // 外部回调
     this.onCoreClick = null;
@@ -310,6 +326,9 @@ class SwimlaneRenderer {
     // 时间轴（随纵向滚动跟随）
     this._renderTimeAxis(ctx, canvasW, timeRange, viewStartTime, viewEndTime, this.yScrollTop);
 
+    // 分组背景（在行和任务条之前绘制）
+    this._renderGroupBandsBg(ctx, canvasW, canvasH);
+
     // 每一行
     this._getVisibleCores().forEach((coreName, rowIndex) => {
       const y = SWIMLANE_CONFIG.TIME_AXIS_HEIGHT + rowIndex * SWIMLANE_CONFIG.ROW_HEIGHT;
@@ -322,6 +341,9 @@ class SwimlaneRenderer {
 
     // 关联连线
     this._renderRelations(ctx, canvasW, timeRange);
+
+    // 分组边框和标签（在行之后绘制，保证可见性）
+    this._renderGroupBandsOverlay(ctx, canvasW, canvasH);
 
     // 选中核心高亮边框
     if (this.selectedCore) {
@@ -554,6 +576,110 @@ class SwimlaneRenderer {
       ctx.stroke();
       this._drawArrow(ctx, dx - 5, dy, dx, dy);
     }
+    ctx.restore();
+  }
+
+  // ─── 分组区间渲染 ─────────────────────────────────────────────
+
+  setGroupBands(bands) {
+    this.groupBands = bands || [];
+    this._render();
+  }
+
+  toggleGroups(show) {
+    this.showGroups = show;
+    this._render();
+  }
+
+  /**
+   * 第一遍：仅绘制背景填充色（在任务条之前，不遮挡任务）
+   */
+  _renderGroupBandsBg(ctx, canvasW, canvasH) {
+    if (!this.showGroups || !this.groupBands.length) return;
+
+    const axisH = SWIMLANE_CONFIG.TIME_AXIS_HEIGHT;
+
+    ctx.save();
+    this.groupBands.forEach((band, idx) => {
+      const x1 = band.start * this.xScale;
+      const x2 = band.end   * this.xScale;
+      if (x2 <= 0 || x1 >= canvasW) return;
+
+      const { bg } = GROUP_PALETTE[idx % GROUP_PALETTE.length];
+      ctx.fillStyle = bg;
+      ctx.fillRect(x1, axisH, x2 - x1, canvasH - axisH);
+    });
+    ctx.restore();
+  }
+
+  /**
+   * 第二遍：绘制边框 + 顶部标签（在任务条之后，保证可见）
+   */
+  _renderGroupBandsOverlay(ctx, canvasW, canvasH) {
+    if (!this.showGroups || !this.groupBands.length) return;
+
+    const axisH    = SWIMLANE_CONFIG.TIME_AXIS_HEIGHT;
+    const scrollLeft = this._getScrollLeft();
+    const labelH   = 13;   // 标签背景高度
+    const labelY   = axisH + 3;
+
+    ctx.save();
+    ctx.font = 'bold 10px monospace';
+
+    this.groupBands.forEach((band, idx) => {
+      const x1 = band.start * this.xScale;
+      const x2 = band.end   * this.xScale;
+      if (x2 <= 0 || x1 >= canvasW) return;
+
+      const { border, text } = GROUP_PALETTE[idx % GROUP_PALETTE.length];
+      const bandW = x2 - x1;
+
+      // 左边框
+      ctx.strokeStyle = border;
+      ctx.lineWidth   = 1.5;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(x1, axisH);
+      ctx.lineTo(x1, canvasH);
+      ctx.stroke();
+
+      // 右边框
+      ctx.beginPath();
+      ctx.moveTo(x2, axisH);
+      ctx.lineTo(x2, canvasH);
+      ctx.stroke();
+
+      // 顶部横线（紧贴时间轴下方）
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x1, axisH);
+      ctx.lineTo(x2, axisH);
+      ctx.stroke();
+
+      // 标签：粘附在可视区左边缘，但不超出分组右边界
+      const labelText  = `G${band.id}`;
+      const textW      = ctx.measureText(labelText).width + 8;
+
+      // 标签 X 位置：分组开始处，若分组已滚出左侧则贴左视口边缘
+      let lx = Math.max(x1 + 4, scrollLeft + 4);
+      // 不超出分组右侧（留出文字宽度）
+      lx = Math.min(lx, x2 - textW - 2);
+
+      if (lx + textW > x1 && bandW > 8) {
+        // 标签背景
+        ctx.fillStyle = border.replace(/[\d.]+\)$/, '0.85)'); // 更高不透明度
+        ctx.beginPath();
+        ctx.roundRect(lx - 2, labelY, textW, labelH, 3);
+        ctx.fill();
+
+        // 标签文字
+        ctx.fillStyle = text;
+        ctx.textAlign  = 'left';
+        ctx.fillText(labelText, lx + 2, labelY + 10);
+      }
+    });
+
+    ctx.setLineDash([]);
     ctx.restore();
   }
 

@@ -29,6 +29,7 @@ class App {
     this.showAIVToggle = document.getElementById('showAIV');
     this.showBubblesToggle = document.getElementById('showBubbles');
     this.highlightBottlenecksToggle = document.getElementById('highlightBottlenecks');
+    this.showGroupsToggle = document.getElementById('showGroups');
 
     this.swimlaneViewport = document.getElementById('swimlaneViewport');
     this.swimlaneCanvas = document.getElementById('swimlaneCanvas');
@@ -176,6 +177,9 @@ class App {
     this.highlightBottlenecksToggle?.addEventListener('change', () => {
       this.swimlane.toggleBottleneckHighlight(this.highlightBottlenecksToggle.checked);
     });
+    this.showGroupsToggle?.addEventListener('change', () => {
+      this.swimlane.toggleGroups(this.showGroupsToggle.checked);
+    });
 
     // Tab 切换
     this.tabBtns.forEach(btn => {
@@ -257,6 +261,7 @@ class App {
 
   _renderSwimlane() {
     this.swimlane.loadData(this.parsedData, this.analysisResult);
+    this.swimlane.setGroupBands(this.parsedData.groupBands);
   }
 
   _renderMetricCards() {

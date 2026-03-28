@@ -45,6 +45,9 @@ function parseTraceJSON(data) {
   const taskIndex = buildTaskIndex(execEvents);
   const relations = buildRelations(execEvents, flowEvents);
 
+  // 10. 构建任务分组 (按名称第一位数字)
+  const groupBands = buildGroupBands(execEvents, timeRange);
+
   return {
     threadMap,
     execEvents,
@@ -56,6 +59,7 @@ function parseTraceJSON(data) {
     colorMap,
     taskIndex,
     relations,
+    groupBands,
     totalEventCount: execEvents.length,
     coreCount: coreEvents.size,
   };
@@ -321,6 +325,44 @@ function getCoreType(coreName) {
   if (coreName.startsWith('AIC')) return 'AIC';
   if (coreName.startsWith('AIV')) return 'AIV';
   return 'OTHER';
+}
+
+/**
+ * 从任务名称中提取分组 ID（第一个数字段）
+ * 例: "0-0-0-1-1(bn-after-matmul2)" → "0"
+ *     "3-5-24-3(matmul)"            → "3"
+ */
+function extractGroupId(name) {
+  if (!name) return null;
+  const m = name.match(/^(\d+)/);
+  return m ? m[1] : null;
+}
+
+/**
+ * 构建任务分组区间数组，按名称第一位数字分组，计算每组的时间跨度
+ * 返回 [{id, start, end, count}] (start/end 为相对于 timeRange.start 的偏移量，单位 μs)
+ */
+function buildGroupBands(execEvents, timeRange) {
+  const groups = new Map(); // id -> {id, start, end, count}
+
+  execEvents.forEach(e => {
+    const gid = extractGroupId(e.name);
+    if (gid === null) return;
+
+    const relStart = e.ts - timeRange.start;
+    const relEnd   = relStart + (e.dur || 0);
+
+    if (!groups.has(gid)) {
+      groups.set(gid, { id: gid, start: relStart, end: relEnd, count: 0 });
+    }
+    const g = groups.get(gid);
+    if (relStart < g.start) g.start = relStart;
+    if (relEnd   > g.end)   g.end   = relEnd;
+    g.count++;
+  });
+
+  // 按开始时间排序
+  return [...groups.values()].sort((a, b) => a.start - b.start);
 }
 
 /**
