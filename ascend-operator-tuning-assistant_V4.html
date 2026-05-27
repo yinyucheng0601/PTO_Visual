@@ -1,0 +1,1368 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>昇腾算子调优助手 · 多算子 + 自定义上传 (Demo)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-editor:#1e1e1e; --bg-side:#252526; --bg-activity:#333333; --bg-title:#323233;
+  --bg-panel:#1e1e1e; --bg-input:#3c3c3c; --bg-hover:#2a2d2e;
+  --line:#1b1b1b; --border:#3c3c3c; --border-soft:#2b2b2b;
+  --text:#cccccc; --text-dim:#858585; --text-bright:#ffffff;
+  --blue:#007acc; --blue-hi:#0e639c; --link:#3794ff; --sel:#264f78;
+  --accent:#ff5d5d; --accent-deep:#e8442b; --gold:#ffb454;
+  --green:#4ec9b0; --green-bar:#89d185; --red:#f14c4c; --purple:#c586c0;
+  --kw:#569cd6; --type:#4ec9b0; --fn:#dcdcaa; --str:#ce9178; --num:#b5cea8;
+  --com:#6a9955; --ns:#9cdcfe; --op:#d4d4d4;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'IBM Plex Sans',system-ui,sans-serif;background:#181818;color:var(--text);
+  font-size:13px;overflow:hidden;-webkit-font-smoothing:antialiased;}
+.mono{font-family:'IBM Plex Mono',monospace}
+.app{display:flex;flex-direction:column;height:100vh;width:100vw;border:1px solid #000;background:var(--bg-editor)}
+
+.titlebar{height:34px;background:var(--bg-title);display:flex;align-items:center;padding:0 10px;flex-shrink:0;border-bottom:1px solid #000;user-select:none}
+.traffic{display:flex;gap:8px;margin-right:14px}
+.traffic span{width:12px;height:12px;border-radius:50%}
+.traffic .r{background:#ff5f56}.traffic .y{background:#ffbd2e}.traffic .g{background:#27c93f}
+.menu{display:flex;gap:15px;color:#bbb;font-size:12.5px}.menu span:hover{color:#fff}
+.title-center{flex:1;text-align:center;color:#9d9d9d;font-size:12px}.title-center b{color:#cfcfcf;font-weight:600}
+
+.main{flex:1;display:flex;min-height:0}
+.activity{width:48px;background:var(--bg-activity);display:flex;flex-direction:column;align-items:center;padding-top:6px;flex-shrink:0;justify-content:space-between}
+.act-top,.act-bot{display:flex;flex-direction:column;align-items:center;gap:2px}
+.act{width:48px;height:46px;display:flex;align-items:center;justify-content:center;color:#858585;cursor:pointer;position:relative;border-left:2px solid transparent}
+.act:hover{color:#fff}.act.active{color:#fff;border-left:2px solid var(--text-bright)}
+.act svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.5}
+.act.ascend.active{border-left:2px solid var(--accent)}
+.act .badge{position:absolute;top:6px;right:7px;background:var(--accent);color:#fff;font-size:9px;min-width:14px;height:14px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:700;padding:0 3px}
+
+.sidebar{width:268px;background:var(--bg-side);flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--line);overflow:hidden}
+.side-head{padding:11px 14px 6px 18px;font-size:11px;letter-spacing:.9px;color:#bbb;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}
+.side-head .add{display:flex;gap:6px}
+.side-head .add button{background:none;border:none;color:#bbb;cursor:pointer;font-size:15px;width:22px;height:22px;border-radius:4px;line-height:1}
+.side-head .add button:hover{background:#ffffff15;color:#fff}
+.side-scroll{overflow-y:auto;flex:1}
+.assistant-hero{margin:6px 12px 10px;padding:13px 14px;border-radius:8px;background:linear-gradient(150deg,#2a2022,#252526 60%);border:1px solid #3a2a2c}
+.assistant-hero .h-title{display:flex;align-items:center;gap:8px;font-weight:600;color:#fff;font-size:13px}
+.assistant-hero .dot{width:8px;height:8px;border-radius:50%;background:var(--green-bar);box-shadow:0 0 8px var(--green-bar)}
+.assistant-hero p{color:var(--text-dim);font-size:11px;margin-top:7px;line-height:1.55}
+.assistant-hero code{color:#9cdcfe;font-family:'IBM Plex Mono'}
+.assistant-hero .tag{display:inline-block;margin-top:9px;font-size:10px;color:var(--accent);border:1px solid #5a3033;border-radius:4px;padding:2px 7px}
+.tree-section{font-size:11px;color:var(--text-dim);padding:10px 16px 4px;text-transform:uppercase;letter-spacing:.5px}
+.op-item{display:flex;align-items:center;gap:8px;padding:6px 14px 6px 18px;cursor:pointer;font-size:13px}
+.op-item:hover{background:var(--bg-hover)}.op-item.sel{background:#37373d}
+.op-item .ico{width:15px;text-align:center}
+.op-item .nm{flex:1;color:#d4d4d4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-item .st{font-size:9px;padding:1px 6px;border-radius:9px;font-weight:600;white-space:nowrap}
+.st.vec{background:#2d2540;color:#c9a9ff}.st.cube{background:#3a2a12;color:var(--gold)}
+.st.fused{background:#10303a;color:#7fd6e8}.st.custom{background:#4a1d1f;color:var(--accent)}
+.upload-tile{margin:6px 12px 12px;border:1.5px dashed #444;border-radius:8px;padding:14px;text-align:center;cursor:pointer;color:var(--text-dim);transition:.15s}
+.upload-tile:hover{border-color:var(--accent);color:#ddd;background:#2a2022}
+.upload-tile .big{font-size:20px}.upload-tile .t{font-size:12px;margin-top:4px;color:#ddd}.upload-tile .s{font-size:10px;margin-top:2px}
+
+.center{flex:1;display:flex;flex-direction:column;min-width:0}
+.tabs{height:36px;background:#252526;display:flex;flex-shrink:0;align-items:flex-end;overflow-x:auto}
+.tab{height:36px;display:flex;align-items:center;gap:8px;padding:0 14px;font-size:13px;color:#9a9a9a;background:#2d2d2d;border-right:1px solid var(--line);cursor:pointer;position:relative;white-space:nowrap}
+.tab.active{background:var(--bg-editor);color:#fff}
+.tab.active::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:var(--accent)}
+.tab .ico{color:#519aba}
+.editor-wrap{flex:1;display:flex;flex-direction:column;min-height:0;background:var(--bg-editor)}
+.breadcrumb{height:24px;display:flex;align-items:center;padding:0 18px;font-size:11.5px;color:var(--text-dim);gap:6px;flex-shrink:0}
+.breadcrumb .sep{opacity:.5}
+.code{flex:1;overflow:auto;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:20px;padding-bottom:14px}
+.row{display:flex;min-height:20px}
+.gutter{width:50px;text-align:right;padding-right:16px;color:#6e7681;flex-shrink:0;user-select:none}
+.gutter .marker{color:var(--accent);font-size:10px}
+.ln{flex:1;white-space:pre;padding-right:24px}
+.row:hover{background:#ffffff08}.row.cur{background:rgba(255,180,84,.07)}
+.row.flash{animation:flash 1s ease}
+@keyframes flash{0%{background:rgba(255,93,93,.28)}100%{background:transparent}}
+.lens-row{display:flex;min-height:19px;align-items:center}
+.lens-gutter{width:50px;flex-shrink:0}
+.lens{font-size:11.5px;color:#8c8c8c;display:flex;align-items:center;gap:6px;padding-left:2px}
+.lens .ai{color:var(--accent);font-weight:600}.lens a{color:var(--link);cursor:pointer}.lens a:hover{text-decoration:underline}
+.lens .delta{color:var(--green-bar);font-weight:600}
+.k{color:var(--kw)}.t{color:var(--type)}.f{color:var(--fn)}.s{color:var(--str)}.n{color:var(--num)}.c{color:var(--com)}.ns{color:var(--ns)}.o{color:var(--op)}
+.hl{background:rgba(255,180,84,.16);border-radius:3px;padding:0 1px;border-bottom:1px dashed var(--gold)}
+
+.bottom{height:240px;background:var(--bg-panel);border-top:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;transition:height .2s}
+.bottom.collapsed{height:35px}
+.panel-tabs{height:35px;display:flex;align-items:center;padding:0 14px;gap:18px;flex-shrink:0;border-bottom:1px solid var(--line)}
+.ptab{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--text-dim);cursor:pointer;padding:9px 0;border-bottom:1px solid transparent}
+.ptab.active{color:#fff;border-bottom:1px solid var(--accent)}
+.panel-actions{margin-left:auto;display:flex;gap:10px;color:var(--text-dim)}.panel-actions span{cursor:pointer}.panel-actions span:hover{color:#fff}
+.panel-body{flex:1;overflow:auto;padding:12px 16px}
+.swim-head{display:flex;align-items:center;gap:14px;margin-bottom:11px;flex-wrap:wrap}
+.swim-head .title{font-size:12px;color:#ddd;font-weight:600}
+.swim-head .legend{display:flex;gap:13px;font-size:10.5px;color:var(--text-dim)}
+.swim-head .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.lane{display:flex;align-items:center;height:26px;margin-bottom:4px}
+.lane-label{width:84px;font-size:11px;color:#aaa;flex-shrink:0;font-family:'IBM Plex Mono'}
+.lane-track{flex:1;height:18px;position:relative;background:#161616;border-radius:3px;overflow:hidden}
+.blk{position:absolute;top:0;height:18px;border-radius:2px;transition:left .35s,width .35s}
+.bubble{position:absolute;top:0;height:18px;background:repeating-linear-gradient(45deg,#3a1414,#3a1414 4px,#2a0e0e 4px,#2a0e0e 8px);border-radius:2px;transition:left .35s,width .35s}
+.swim-note{margin-top:10px;font-size:11px;color:var(--text-dim);line-height:1.6}.swim-note b{color:var(--gold)}
+.swim-foot{display:flex;gap:24px;margin-top:12px;border-top:1px solid var(--border-soft);padding-top:11px}
+.swim-foot .fm .v{font-size:17px;font-weight:700;color:#fff;font-family:'IBM Plex Mono'}.swim-foot .fm .v.good{color:var(--green-bar)}
+.swim-foot .fm .l{font-size:10px;color:var(--text-dim)}
+.term{font-family:'IBM Plex Mono';font-size:12.5px;line-height:1.7;color:#cfcfcf}
+.term .pmt{color:var(--green-bar)}.term .dim{color:var(--text-dim)}.term .acc{color:var(--gold)}.term .ok{color:var(--green-bar)}
+
+.rpanel{width:438px;flex-shrink:0;background:var(--bg-side);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.rp-head{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;flex-shrink:0}
+.rp-head .logo{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent-deep));display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:13px;flex-shrink:0;box-shadow:0 2px 10px rgba(232,68,43,.4)}
+.rp-head .ti{font-weight:700;color:#fff;font-size:13.5px}.rp-head .sub{font-size:10.5px;color:var(--text-dim);margin-top:1px}
+.rp-scroll{flex:1;overflow-y:auto;padding:14px 16px 60px}
+.rp-scroll::-webkit-scrollbar,.side-scroll::-webkit-scrollbar,.panel-body::-webkit-scrollbar,.code::-webkit-scrollbar{width:11px;height:11px}
+.rp-scroll::-webkit-scrollbar-thumb,.side-scroll::-webkit-scrollbar-thumb,.panel-body::-webkit-scrollbar-thumb,.code::-webkit-scrollbar-thumb{background:#4a4a4a;border-radius:6px;border:3px solid transparent;background-clip:content-box}
+
+.analysis{background:#21262b;border:1px solid #2e3a40;border-radius:10px;padding:13px;margin-bottom:13px}
+.analysis .at{display:flex;align-items:center;gap:7px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#7fd6e8;font-weight:600;margin-bottom:9px}
+.analysis .grid{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:11.5px}
+.analysis .grid .lab{color:var(--text-dim)}.analysis .grid .val{color:#fff;font-family:'IBM Plex Mono';font-size:11px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+.chip{font-family:'IBM Plex Mono';font-size:10px;background:#10303a;color:#7fd6e8;border:1px solid #234;border-radius:5px;padding:2px 7px}
+.chip.warn{background:#3a3112;color:var(--gold);border-color:#5a4a20}
+
+.rec-card{background:linear-gradient(155deg,#2c2123,#242424);border:1px solid #3e2c2e;border-radius:10px;padding:14px;margin-bottom:14px}
+.rec-card .rc-top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.rec-card .spark{font-size:14px}.rec-card .rc-title{font-weight:700;color:#fff;font-size:13px;flex:1}
+.rec-card .conf{font-size:10px;color:var(--green-bar);background:#173a2f;padding:2px 7px;border-radius:9px;font-weight:600}
+.rec-card .reason{font-size:11.5px;color:#b9b9b9;line-height:1.7}
+.rec-card .reason code{font-family:'IBM Plex Mono';color:var(--gold);background:#0003;padding:1px 4px;border-radius:3px}
+.rec-card .speedup{margin-top:11px;display:flex;align-items:baseline;gap:8px}
+.rec-card .speedup .big{font-size:30px;font-weight:800;color:var(--gold);font-family:'IBM Plex Mono';line-height:1}
+.rec-card .speedup .lbl{font-size:11px;color:var(--text-dim)}
+.btn-row{display:flex;gap:8px;margin-top:12px}
+.btn{flex:1;border:none;border-radius:7px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-deep));color:#fff}.btn.primary:hover{filter:brightness(1.1)}
+.btn.ghost{background:#3a3a3b;color:#ddd}.btn.ghost:hover{background:#454547}
+
+.sec-title{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-dim);margin:18px 0 11px;display:flex;align-items:center;gap:8px}
+.sec-title::after{content:"";flex:1;height:1px;background:var(--border-soft)}
+.ctrl{margin-bottom:15px}
+.ctrl .clab{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
+.ctrl .clab .name{font-size:12.5px;color:#ddd;font-weight:500}
+.ctrl .clab .name .api{font-family:'IBM Plex Mono';font-size:10.5px;color:#777;margin-left:6px}
+.ctrl .clab .val{font-family:'IBM Plex Mono';font-size:12px;color:var(--gold);font-weight:600}
+.ctrl .clab .val.rec-match{color:var(--green-bar)}
+.seg{display:flex;gap:5px}
+.seg button{flex:1;background:#323233;border:1px solid #3c3c3c;color:#bbb;border-radius:6px;padding:6px 0;font-size:11.5px;cursor:pointer;font-family:'IBM Plex Mono';transition:.12s;position:relative}
+.seg button:hover{background:#3a3a3c;color:#fff}.seg button.on{background:var(--blue-hi);border-color:var(--blue);color:#fff}
+.seg button .star{position:absolute;top:-6px;right:-3px;color:var(--gold);font-size:10px}
+.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0}
+.toggle-row .tt{font-size:12.5px;color:#ddd}.toggle-row .tt .api{font-family:'IBM Plex Mono';font-size:10px;color:#777;display:block;margin-top:1px}
+.sw{width:38px;height:20px;background:#4a4a4a;border-radius:11px;position:relative;cursor:pointer;transition:.2s;flex-shrink:0}
+.sw.on{background:var(--green)}.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s}.sw.on::after{left:20px}
+.gen-note{font-size:10px;color:#6f6f6f;margin:2px 0 6px;line-height:1.5}
+
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:6px}
+.metric{background:#2d2d2e;border-radius:8px;padding:11px 12px;border:1px solid transparent}
+.metric.hero{grid-column:span 2;background:linear-gradient(135deg,#22302c,#242424);border-color:#2e463f}
+.metric .mv{font-size:21px;font-weight:700;color:#fff;font-family:'IBM Plex Mono';display:flex;align-items:baseline;gap:5px}
+.metric.hero .mv{font-size:25px;color:var(--green-bar)}
+.metric .mv .u{font-size:12px;color:var(--text-dim);font-weight:400}
+.metric .ml{font-size:10.5px;color:var(--text-dim);margin-top:3px}
+.metric .trend{font-size:10px;font-weight:600;margin-left:auto}.trend.up{color:var(--green-bar)}.trend.down{color:var(--red)}
+.bar-block{margin-top:13px}
+.bar-item{margin-bottom:11px}
+.bar-item .bt{display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:5px}
+.bar-item .bt .bn{color:#cfcfcf}.bar-item .bt .bv{font-family:'IBM Plex Mono';color:#aaa}
+.bar-track{height:7px;background:#161616;border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .4s,background .3s}
+.alert{margin-top:12px;padding:10px 12px;border-radius:8px;font-size:11.5px;line-height:1.6;display:none;gap:8px;align-items:flex-start}
+.alert.show{display:flex}
+.alert.warn{background:#3a3112;border:1px solid #6a5a20;color:#ffe0a0}
+.alert.good{background:#173a2f;border:1px solid #245a44;color:#bff0d8}
+.alert.bad{background:#3a1414;border:1px solid #6a2020;color:#ffb0b0}
+.sweep-wrap{margin-top:8px}
+canvas{display:block;width:100%}
+
+.statusbar{height:24px;background:var(--blue);display:flex;align-items:center;padding:0 12px;font-size:11.5px;color:#fff;flex-shrink:0;gap:16px}
+.statusbar .seg-s{display:flex;align-items:center;gap:5px}.statusbar .right{margin-left:auto;display:flex;gap:16px;align-items:center}
+.statusbar .sp{background:rgba(255,255,255,.18);padding:1px 8px;border-radius:10px;font-weight:600}
+.glow{animation:glow 1.4s ease}@keyframes glow{0%,100%{box-shadow:0 0 0 transparent}50%{box-shadow:0 0 0 2px var(--gold)}}
+
+/* modal */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50}
+.mask.show{display:flex}
+.modal{width:620px;max-width:92vw;max-height:88vh;overflow:auto;background:#252526;border:1px solid #3c3c3c;border-radius:12px;box-shadow:0 20px 60px #000a}
+.modal .mh{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.modal .mh .logo{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent-deep));display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff}
+.modal .mh .t{font-weight:700;color:#fff;font-size:15px}.modal .mh .s{font-size:11px;color:var(--text-dim)}
+.modal .mh .close{margin-left:auto;color:#999;cursor:pointer;font-size:20px}
+.modal .mb{padding:18px 20px}
+.drop{border:1.5px dashed #4a4a4a;border-radius:10px;padding:22px;text-align:center;color:var(--text-dim);cursor:pointer;transition:.15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:#2a2022;color:#ddd}
+.drop .big{font-size:26px}.drop .t{color:#fff;margin-top:6px;font-size:13px}.drop .s{font-size:11px;margin-top:3px}
+.modal .or{text-align:center;color:#666;font-size:11px;margin:14px 0;position:relative}
+.modal label{font-size:11px;color:var(--text-dim);display:block;margin-bottom:6px}
+.modal input[type=text],.modal textarea{width:100%;background:#1e1e1e;border:1px solid #3c3c3c;border-radius:7px;color:#ddd;font-family:'IBM Plex Mono';font-size:12px;padding:9px 11px}
+.modal textarea{height:200px;resize:vertical;line-height:1.5}
+.modal .samples{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.modal .samples button{background:#2d2d2e;border:1px solid #3c3c3c;color:#bbb;border-radius:6px;padding:6px 11px;font-size:11px;cursor:pointer}
+.modal .samples button:hover{color:#fff;border-color:var(--accent)}
+.modal .mf{display:flex;gap:10px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line)}
+.modal .mf .btn{flex:none;padding:9px 18px}
+
+.toast{position:fixed;bottom:34px;right:24px;background:#1d2b24;border:1px solid #2e5a44;color:#bff0d8;padding:12px 16px;border-radius:9px;font-size:12.5px;box-shadow:0 8px 30px #0008;z-index:60;opacity:0;transform:translateY(10px);transition:.25s;max-width:340px;line-height:1.5}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast b{color:#fff}
+
+/* API hover 浮层 */
+.api-link{border-bottom:1px dotted rgba(156,220,254,.55);cursor:help}
+.api-link:hover{background:rgba(156,220,254,.12);border-radius:3px}
+.apipop{position:fixed;z-index:80;display:none;width:392px;max-width:92vw;background:#21252b;
+  border:1px solid #3a4350;border-radius:11px;box-shadow:0 14px 44px #000c;padding:15px 16px;
+  font-family:'IBM Plex Sans';font-size:12px;color:#cfcfcf;line-height:1.6}
+.ap-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ap-title{font-family:'IBM Plex Mono';font-size:13.5px;font-weight:600;color:#9cdcfe}
+.ap-tag{font-size:10px;color:#7fd6e8;background:#10303a;border:1px solid #234;border-radius:5px;padding:2px 7px;margin-left:auto}
+.ap-sum{color:#cdcdcd;margin-bottom:11px}
+.ap-diag{background:#181c20;border:1px solid #2b333b;border-radius:8px;padding:11px 11px 9px;margin-bottom:11px}
+.ap-diag .cap{font-size:10.5px;color:#8a9aa8;margin-top:8px;line-height:1.55}
+.ap-diag .cap b{color:var(--gold)}
+.ap-sig{background:#181c20;border:1px solid #2b333b;border-radius:6px;padding:8px 10px;font-family:'IBM Plex Mono';
+  font-size:10.5px;color:#dcdcaa;margin-bottom:10px;white-space:pre-wrap;word-break:break-word}
+.ap-sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#7f8a96;margin:10px 0 6px}
+.ap-p{display:flex;gap:9px;margin-bottom:6px}
+.ap-pk{font-family:'IBM Plex Mono';color:#9cdcfe;font-size:10.5px;flex-shrink:0;width:38%;word-break:break-word}
+.ap-pd{color:#b4b4b4;font-size:11px;flex:1}
+.ap-ret{color:#b4b4b4}
+.ap-warn{margin-top:10px;background:#3a3112;border:1px solid #5a4a20;color:#ffe0a0;border-radius:7px;padding:8px 10px;font-size:11px}
+.ap-note{margin-top:10px;background:#1d2b24;border:1px solid #2e5a44;color:#bff0d8;border-radius:7px;padding:8px 10px;font-size:11px}
+.ap-note code,.ap-warn code{font-family:'IBM Plex Mono';color:#fff;background:#0004;padding:0 3px;border-radius:3px}
+.ap-doc{display:inline-block;margin-top:11px;color:#3794ff;font-size:11.5px;text-decoration:none}
+.ap-doc:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+    <div class="menu"><span>文件</span><span>编辑</span><span>选择</span><span>查看</span><span>转到</span><span>运行</span><span>终端</span><span>帮助</span></div>
+    <div class="title-center"><b id="tbName">hello_world.py</b> — 昇腾 Ascend Studio</div>
+  </div>
+
+  <div class="main">
+    <div class="activity">
+      <div class="act-top">
+        <div class="act"><svg viewBox="0 0 24 24"><path d="M3 4h7v7H3zM14 4h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg></div>
+        <div class="act"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg></div>
+        <div class="act ascend active" title="昇腾算子调优助手">
+          <svg viewBox="0 0 24 24"><path d="M12 2l2.4 5.6L20 8.6l-4 4.2.9 6L12 16l-4.9 2.8.9-6-4-4.2 5.6-1z"/></svg>
+          <span class="badge" id="actBadge">2</span>
+        </div>
+        <div class="act"><svg viewBox="0 0 24 24"><path d="M5 4h9l5 5v11H5z"/><path d="M14 4v5h5"/></svg></div>
+      </div>
+      <div class="act-bot">
+        <div class="act"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></div>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <div class="side-head"><span>昇腾算子调优助手</span><span class="add"><button id="btnUpload" title="上传/粘贴自定义算子">+</button></span></div>
+      <div class="side-scroll">
+        <div class="assistant-hero">
+          <div class="h-title"><span class="dot"></span>多算子调优工作台</div>
+          <p>切换下方算子查看针对性推荐;或点击 <b style="color:#fff">+</b> 上传 / 粘贴自定义 PyPTO 算子,助手会<b style="color:#fff">解析代码</b>并生成关键参数推荐。</p>
+          <span class="tag">Human-In-The-Loop · 推荐由你决策</span>
+        </div>
+        <div class="tree-section">算子列表</div>
+        <div id="opList"></div>
+        <div class="upload-tile" id="uploadTile">
+          <div class="big">⬆</div>
+          <div class="t">上传 / 粘贴自定义算子</div>
+          <div class="s">.py 文件,或直接粘贴 PyPTO 代码</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="center">
+      <div class="tabs" id="tabs"></div>
+      <div class="editor-wrap">
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <div class="code" id="code"></div>
+      </div>
+      <div class="bottom" id="bottom">
+        <div class="panel-tabs">
+          <div class="ptab active" data-p="prof">性能分析 · 流水泳道图</div>
+          <div class="ptab" data-p="term">终端</div>
+          <div class="ptab" data-p="prob">问题</div>
+          <div class="panel-actions"><span id="collapseBtn">⌃ 折叠</span></div>
+        </div>
+        <div class="panel-body" id="panel-prof">
+          <div class="swim-head">
+            <span class="title" id="swimTitle">流水线泳道图</span>
+            <span class="legend" id="swimLegend"></span>
+          </div>
+          <div id="swim"></div>
+          <div class="swim-note" id="swim-note"></div>
+          <div class="swim-foot" id="swimFoot"></div>
+        </div>
+        <div class="panel-body term" id="panel-term" style="display:none"><div id="termBody"></div></div>
+        <div class="panel-body term" id="panel-prob" style="display:none"><div id="probBody"></div></div>
+      </div>
+    </div>
+
+    <div class="rpanel">
+      <div class="rp-head">
+        <div class="logo">昇</div>
+        <div><div class="ti">What-if 调优面板</div><div class="sub" id="rpSub">—</div></div>
+      </div>
+      <div class="rp-scroll">
+        <div class="analysis" id="analysis"></div>
+        <div class="rec-card" id="recCard">
+          <div class="rc-top"><span class="spark">✨</span><span class="rc-title">AI 推荐配置</span><span class="conf" id="recConf">置信度 高</span></div>
+          <div class="reason" id="recReason"></div>
+          <div class="speedup"><span class="big" id="recBig">—</span><span class="lbl" id="recLbl"></span></div>
+          <div class="btn-row"><button class="btn primary" id="applyBtn">✓ 应用推荐</button><button class="btn ghost" id="resetBtn">↺ 基线</button></div>
+        </div>
+        <div class="sec-title">关键参数（What-if 可拖拽）</div>
+        <div id="ctrls"></div>
+        <div class="gen-note" id="genNote"></div>
+        <div class="alert" id="alertBox"><span class="ai"></span><span id="alertText"></span></div>
+        <div class="sec-title">实时性能预估</div>
+        <div class="metrics">
+          <div class="metric hero"><div class="mv"><span id="m-hero">—</span><span class="u" id="m-hero-u"></span><span class="trend up" id="m-tr"></span></div><div class="ml" id="m-hero-l"></div></div>
+          <div class="metric"><div class="mv"><span id="m-2">—</span></div><div class="ml" id="m-2-l"></div></div>
+          <div class="metric"><div class="mv"><span id="m-3">—</span><span class="u">×</span></div><div class="ml" id="m-3-l">vs 基线</div></div>
+        </div>
+        <div class="bar-block" id="bars"></div>
+        <div class="sec-title" id="sweepTitle">调优空间扫描</div>
+        <div class="sweep-wrap"><canvas id="sweep" height="150"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span class="seg-s">⎇ master</span>
+    <span class="seg-s" id="stProblems">⊘ 0</span>
+    <span class="seg-s">昇腾助手: <span class="sp" id="status-speedup">—</span></span>
+    <div class="right">
+      <span class="seg-s" id="status-cyc">—</span>
+      <span class="seg-s">SOC: Ascend 910B</span>
+      <span class="seg-s">PyPTO</span>
+      <span class="seg-s">Python 3.11</span>
+    </div>
+  </div>
+</div>
+
+<!-- 上传/粘贴弹窗 -->
+<div class="mask" id="mask">
+  <div class="modal">
+    <div class="mh">
+      <div class="logo">昇</div>
+      <div><div class="t">上传自定义 PyPTO 算子</div><div class="s">助手将解析代码,识别算子类型与可调 API,并生成关键参数推荐</div></div>
+      <div class="close" id="modalClose">×</div>
+    </div>
+    <div class="mb">
+      <div class="drop" id="drop">
+        <div class="big">⬆</div>
+        <div class="t">点击选择 .py 文件,或拖拽到此处</div>
+        <div class="s">文件不会上传到服务器,全部在本地浏览器解析</div>
+        <input type="file" id="fileInput" accept=".py,.txt" style="display:none">
+      </div>
+      <div class="or">— 或直接粘贴代码 —</div>
+      <label>算子名称</label>
+      <input type="text" id="opName" placeholder="例如 my_fused_op">
+      <label style="margin-top:12px">PyPTO 算子代码</label>
+      <textarea id="opCode" placeholder="将 PyPTO 算子源码粘贴到这里…"></textarea>
+      <div class="samples">
+        <span style="font-size:11px;color:#666;align-self:center">试用示例:</span>
+        <button data-sample="matmul">融合 MatMul + 量化（Cube）</button>
+        <button data-sample="softmax">Softmax（向量）</button>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" id="modalCancel">取消</button>
+      <button class="btn primary" id="analyzeBtn">⚙ 分析并生成推荐</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="apipop" id="apiPop"></div>
+
+<!-- 内置算子源码 -->
+<script type="text/plain" id="src-hello">#!/usr/bin/env python3
+# coding: utf-8
+# Copyright (c) 2025 Huawei Technologies Co., Ltd.
+# CANN Open Software License Agreement Version 2.0.
+"""
+Hello World Example for PyPTO
+This example demonstrates the simplest tensor addition.
+"""
+import os
+import argparse
+import pypto
+import torch
+import numpy as np
+
+
+def create_add_kernel(shape: tuple, run_mode: str = "npu"):
+    if run_mode == "npu":
+        mode = pypto.RunMode.NPU
+    elif run_mode == "sim":
+        mode = pypto.RunMode.SIM
+    else:
+        raise ValueError(f"Invalid run_mode: {run_mode}.")
+
+    @pypto.frontend.jit(runtime_options={"run_mode": mode})
+    def add_kernel(
+        x: pypto.Tensor([...], pypto.DT_FP32),
+        y: pypto.Tensor([...], pypto.DT_FP32),
+        out: pypto.Tensor([...], pypto.DT_FP32),
+    ):
+        pypto.set_vec_tile_shapes(1, 4, 1, 64)
+        out[:] = x + y
+
+    return add_kernel
+
+
+def test_add_direct(device_id=None, run_mode: str = "npu") -> None:
+    device = f'npu:{device_id}' if run_mode == "npu" else 'cpu'
+    shape = (1, 4, 1, 64)
+    input_data0 = torch.rand(shape, dtype=torch.float, device=device)
+    input_data1 = torch.rand(shape, dtype=torch.float, device=device)
+    output_data = torch.empty(shape, dtype=torch.float32, device=device)
+    create_add_kernel(shape, run_mode)(input_data0, input_data1, output_data)
+    golden = torch.add(input_data0, input_data1)
+    print("Output shape:", output_data.shape)
+    print("Hello world example passed")
+</script>
+
+<script type="text/plain" id="src-veclarge">#!/usr/bin/env python3
+# coding: utf-8
+# 示例变体: 大张量逐元素融合 (scale + add)
+# 使用与 hello_world 相同的真实 API: pypto.set_vec_tile_shapes
+import pypto
+import torch
+
+
+def create_scaled_add_kernel(run_mode: str = "sim"):
+    mode = pypto.RunMode.SIM if run_mode == "sim" else pypto.RunMode.NPU
+
+    @pypto.frontend.jit(runtime_options={"run_mode": mode})
+    def scaled_add_kernel(
+        x: pypto.Tensor([...], pypto.DT_FP16),
+        y: pypto.Tensor([...], pypto.DT_FP16),
+        out: pypto.Tensor([...], pypto.DT_FP16),
+    ):
+        # 大张量需切 Tile;下面是一个未调优的保守初值
+        pypto.set_vec_tile_shapes(8, 16, 8, 32)
+        out[:] = x * 0.5 + y
+
+    return scaled_add_kernel
+
+
+shape = (8, 16, 128, 512)
+</script>
+
+<script type="text/plain" id="src-indexer">#!/usr/bin/env python3
+# coding: utf-8
+# Copyright (c) 2026 Huawei Technologies Co., Ltd.
+# CANN Open Software License Agreement Version 2.0.
+"""
+Lightning Indexer Prolog Quantization Module (DeepSeek serie)
+- Query computation with dynamic quantization
+- Weight computation for indexer attention
+"""
+import pypto
+import math
+import torch
+from dataclasses import dataclass
+from common import inverse_rope_3d, quant_tensor
+
+
+@dataclass
+class IndexerPrologQuantConfig:
+    unroll_list: list
+
+
+def npu_quant_lightning_indexer_prolog(qr, idx_wq_b, x, weights_proj, cos, sin,
+                                       hadamard, qr_scale, idx_wq_b_scale):
+    q = torch.empty([qr.size(0), weights_proj.size(1), hadamard.size(0)], dtype=qr.dtype, device=qr.device)
+    weights = torch.empty([qr.size(0), weights_proj.size(1)], dtype=torch.float16, device=weights_proj.device)
+    q_scale = torch.empty([qr.size(0), weights_proj.size(1)], dtype=torch.float16, device=weights_proj.device)
+
+    # tiling
+    tile_config = IndexerPrologQuantConfig(unroll_list=[128, 64, 32, 16, 8, 1])
+
+    inputs = [qr, idx_wq_b, x, weights_proj, cos, sin, hadamard, qr_scale, idx_wq_b_scale, q, weights, q_scale]
+    quant_lightning_indexer_prolog_kernel(*inputs, tile_config)
+    return q, weights, q_scale
+
+
+@pypto.frontend.jit(
+    pass_options={
+        "cube_l1_reuse_setting": {-1: 2, 1: 1},
+        "vec_nbuffer_setting": {0: 2},
+    },
+    runtime_options={"stitch_function_max_num": 128, "device_sched_mode": 1},
+)
+def quant_lightning_indexer_prolog_kernel(
+    qr: pypto.Tensor([pypto.DYNAMIC, pypto.STATIC], pypto.DT_INT8),
+    idx_wq_b: pypto.Tensor([pypto.STATIC, pypto.STATIC], pypto.DT_INT8, format=pypto.TileOpFormat.TILEOP_NZ),
+    x: pypto.Tensor([pypto.DYNAMIC, pypto.STATIC], pypto.DT_BF16),
+    weights_proj: pypto.Tensor([pypto.STATIC, pypto.STATIC], pypto.DT_BF16, format=pypto.TileOpFormat.TILEOP_NZ),
+    cos: pypto.Tensor([pypto.DYNAMIC, pypto.STATIC], pypto.DT_BF16),
+    sin: pypto.Tensor([pypto.DYNAMIC, pypto.STATIC], pypto.DT_BF16),
+    hadamard: pypto.Tensor([pypto.STATIC, pypto.STATIC], pypto.DT_BF16),
+    qr_scale: pypto.Tensor([pypto.DYNAMIC, pypto.STATIC], pypto.DT_FP32),
+    idx_wq_b_scale: pypto.Tensor([pypto.STATIC, pypto.STATIC], pypto.DT_FP32),
+    q: pypto.Tensor([pypto.DYNAMIC, pypto.STATIC, pypto.STATIC], pypto.DT_INT8),
+    weights: pypto.Tensor([pypto.DYNAMIC, pypto.STATIC], pypto.DT_FP16),
+    q_scale: pypto.Tensor([pypto.DYNAMIC, pypto.STATIC], pypto.DT_FP16),
+    tile_config
+):
+    """Lightning Indexer Prolog Quantization: INT8 Query-Linear + dequant/RoPE/Hadamard + BF16 Weight."""
+    idx_wq_b.set_cache_policy(pypto.CachePolicy.NONE_CACHEABLE, True)
+    weights_proj.set_cache_policy(pypto.CachePolicy.NONE_CACHEABLE, True)
+    hadamard.set_cache_policy(pypto.CachePolicy.NONE_CACHEABLE, True)
+    x_dtype = x.dtype
+    t = qr.shape[0]                 # dynamic axis (tokens)
+    q_lora_rank = qr.shape[1]       # 1024
+    h = x.shape[1]                  # 4096
+    idx_nq = weights_proj.shape[1]  # 64
+    head_dim = hadamard.shape[0]    # 128
+    rope_dim = cos.shape[1]         # 64
+
+    w_qb_scale = pypto.reshape(idx_wq_b_scale, [1, idx_nq * head_dim], inplace=True)
+    hadamard_q = pypto.reshape(hadamard, [1, head_dim, head_dim], inplace=True)
+
+    unroll_list = tile_config.unroll_list
+    for t_idx, unrollLength in pypto.loop_unroll(
+        0, t, 1, name="IndexerPrologLoop", idx_name="t_idx", unroll_list=unroll_list,
+    ):
+        pypto.experimental.set_operation_options(combine_axis=True)
+        t_tile = unrollLength
+        qr_in = pypto.view(qr, [t_tile, q_lora_rank], [t_idx, 0])
+        qs_in = pypto.view(qr_scale, [t_tile, 1], [t_idx, 0])
+
+        pypto.set_semantic_label("Query-Linear")
+        # (t_tile, q_lora_rank) @ (q_lora_rank, idx_nq*head_dim) -> (t_tile, idx_nq*head_dim)
+        pypto.set_cube_tile_shapes([128, 128], [256, 1024], [256, 256])
+        q_s32 = pypto.matmul(qr_in, idx_wq_b, pypto.DT_INT32)
+
+        pypto.set_semantic_label("Query-Dequant")
+        pypto.set_vec_tile_shapes(1, idx_nq * head_dim)
+        q_f32 = pypto.cast(q_s32, pypto.DT_FP32)
+        q_f32 = q_f32 * qs_in
+        q_f32 = q_f32 * w_qb_scale
+        q_cast = pypto.cast(q_f32, x_dtype)
+        q_re = pypto.reshape(q_cast, [t_tile, idx_nq, head_dim])
+
+        q_nope = pypto.view(q_re, [t_tile, idx_nq, head_dim - rope_dim], [0, 0, 0])
+        q_rope = pypto.view(q_re, [t_tile, idx_nq, rope_dim], [0, 0, head_dim - rope_dim])
+        rope_cos = pypto.view(cos, [t_tile, rope_dim], [t_idx, 0])
+        rope_sin = pypto.view(sin, [t_tile, rope_dim], [t_idx, 0])
+        q_roped = inverse_rope_3d(q_rope, rope_cos, rope_sin)
+
+        pypto.set_vec_tile_shapes(1, idx_nq, head_dim)
+        q_assemble = pypto.tensor([t_tile, idx_nq, head_dim], x_dtype, "q_assemble")
+        pypto.assemble(pypto.clone(q_nope), [0, 0, 0], q_assemble)
+        pypto.assemble(q_roped, [0, 0, head_dim - rope_dim], q_assemble)
+
+        pypto.set_semantic_label("Hadamard-Compute")
+        pypto.set_cube_tile_shapes([idx_nq, idx_nq], [head_dim, head_dim], [head_dim, head_dim])
+        q_hadamard = pypto.matmul(q_assemble, hadamard_q, x_dtype)
+        pypto.set_vec_tile_shapes(1, idx_nq, head_dim)
+        q_res, q_scale_res = quant_tensor(q_hadamard)
+        q_scale_out = pypto.reshape(q_scale_res, [t_tile, idx_nq])
+        pypto.set_vec_tile_shapes(t_tile, idx_nq)
+        q_scale_cast = pypto.cast(q_scale_out, pypto.DT_FP16)
+        pypto.assemble(q_res, [t_idx, 0, 0], q)
+        pypto.assemble(q_scale_cast, [t_idx, 0], q_scale)
+
+        pypto.set_semantic_label("Weight-Compute")
+        x_in = pypto.view(x, [t_tile, h], [t_idx, 0])
+        # (t_tile, h) @ (h, idx_nq) -> (t_tile, idx_nq)
+        pypto.set_cube_tile_shapes([32, 64], [h // 4, h], [idx_nq // 4, idx_nq // 4])
+        pypto.set_vec_tile_shapes(t_tile, idx_nq)
+        weights_fp32 = pypto.cast(pypto.matmul(x_in, weights_proj, x_dtype), pypto.DT_FP32)
+        weights_mul = pypto.mul(weights_fp32, 1.0 / (math.sqrt(idx_nq) * math.sqrt(head_dim)))
+        weights_fp16 = pypto.cast(weights_mul, pypto.DT_FP16)
+        pypto.assemble(weights_fp16, [t_idx, 0], weights)
+</script>
+
+<script type="text/plain" id="sample-matmul">#!/usr/bin/env python3
+# coding: utf-8
+# 示例: 融合 MatMul + 量化 (Cube 类算子) —— API 为示意
+import pypto
+import torch
+
+
+def create_matmul_quant_kernel(run_mode: str = "sim"):
+    mode = pypto.RunMode.SIM if run_mode == "sim" else pypto.RunMode.NPU
+
+    @pypto.frontend.jit(runtime_options={"run_mode": mode})
+    def matmul_quant_kernel(
+        a: pypto.Tensor([...], pypto.DT_FP16),
+        b: pypto.Tensor([...], pypto.DT_FP16),
+        out: pypto.Tensor([...], pypto.DT_INT8),
+    ):
+        pypto.set_pass_option("enable_double_buffer", True)
+        pypto.set_pass_option("unroll_factor", 4)
+        # 关键: Cube TileShape (M, N, K)
+        pypto.set_cube_tile_shapes(128, 128, 64)
+        c = pypto.matmul(a, b)
+        out[:] = pypto.quant(c)
+
+    return matmul_quant_kernel
+
+
+shape = (4096, 4096, 4096)
+</script>
+
+<script type="text/plain" id="sample-softmax">#!/usr/bin/env python3
+# coding: utf-8
+# 示例: Softmax (向量类算子)
+import pypto
+import torch
+
+
+def create_softmax_kernel(run_mode: str = "sim"):
+    mode = pypto.RunMode.SIM if run_mode == "sim" else pypto.RunMode.NPU
+
+    @pypto.frontend.jit(runtime_options={"run_mode": mode})
+    def softmax_kernel(
+        x: pypto.Tensor([...], pypto.DT_FP16),
+        out: pypto.Tensor([...], pypto.DT_FP16),
+    ):
+        pypto.set_vec_tile_shapes(4, 8, 16, 64)
+        out[:] = pypto.softmax(x, axis=-1)
+
+    return softmax_kernel
+
+
+shape = (4, 32, 128, 1024)
+</script>
+
+<script>
+/* ============================================================
+   硬件常量 (Ascend 910B 级, illustrative)
+   ============================================================ */
+const HW={ freqGHz:1.8, bw:256/*B/cyc*/, ovhV:12, residV:4, UB:192*1024, cubeMac:4096, L0:128*1024, baseOvhC:18 };
+const DT_BYTES={FP32:4,FP16:2,BF16:2,INT8:1,INT32:4};
+function ceilDiv(a,b){return Math.ceil(a/b);}
+function prod(a){return a.reduce((x,y)=>x*y,1);}
+function fmt(n,d=1){return n.toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});}
+function fmt0(n){return n.toLocaleString('en-US',{maximumFractionDigits:0});}
+
+/* ============================================================
+   代价模型
+   ============================================================ */
+function vecMetrics(op,cfg){
+  const S=op.shape, bytes=op.bytes, lanes=Math.max(1,Math.floor(256/bytes));
+  const T=S.map((d,i)=> op.tunSet.has(i)? cfg['t'+i] : d);
+  const tileElems=prod(T);
+  const nIter=S.reduce((a,d,i)=>a*ceilDiv(d,T[i]),1);
+  const comp=Math.max(1,Math.ceil(tileElems/lanes));
+  const load=op.nIn*tileElems*bytes/HW.bw, store=op.nOut*tileElems*bytes/HW.bw;
+  let ovh=HW.ovhV*ceilDiv(nIter,cfg.unroll)+HW.residV*nIter; if(cfg.unroll>4) ovh+=(cfg.unroll-4)*2*ceilDiv(nIter,cfg.unroll);
+  let cycles,ov=0;
+  if(cfg.db){cycles=nIter*Math.max(load,comp)+store+load+ovh; ov=Math.min(nIter*load,nIter*comp);}
+  else cycles=nIter*(load+comp+store)+ovh;
+  const ub=tileElems*bytes*(op.nIn+op.nOut)*(cfg.db?2:1)/HW.UB;
+  return {kind:'vector',valid:ub<=1,cycles,ns:cycles/HW.freqGHz,nIter,tileElems,ovhRatio:ovh/cycles,
+    vecUtil:Math.min(1,nIter*comp/cycles),mteUtil:Math.min(1,nIter*load/cycles),ub,overlap:ov/cycles};
+}
+function cubeMetrics(op,cfg){
+  const P=op.problem, bytes=op.bytes, L0=Math.floor(HW.L0/bytes);
+  const m=cfg.tileM,n=cfg.tileN,k=cfg.tileK;
+  const l0a=m*k*(cfg.db?2:1)/L0, l0b=k*n*(cfg.db?2:1)/L0, l0c=m*n/L0;
+  const valid=l0a<=1&&l0b<=1&&l0c<=1;
+  const nm=ceilDiv(P.M,m),nn=ceilDiv(P.N,n),nk=ceilDiv(P.K,k),tiles=nm*nn*nk;
+  const comp=m*n*k/HW.cubeMac, load=(m*k+k*n)*bytes/HW.bw, store=m*n*bytes/HW.bw;
+  const tC=comp*tiles,tL=load*tiles,tS=store*nm*nn;
+  let ovh=HW.baseOvhC/cfg.unroll*tiles; if(cfg.unroll>4) ovh+=(cfg.unroll-4)*0.9*tiles;
+  const bub=cfg.align?1:1.27;
+  let cycles=cfg.db? Math.max(tL,tC*bub)+tS+load+ovh : tL+tC*bub+tS+ovh;
+  return {kind:'cube',valid,cycles,ns:cycles/HW.freqGHz,latencyUs:cycles/(HW.freqGHz*1000),
+    cubeUtil:Math.min(1,tC/cycles),mteUtil:Math.min(1,tL/cycles),l0a,l0b,l0c,tiles,
+    bubble:cfg.align?0:tC*0.27/cycles,overlap:cfg.db?Math.min(tL,tC)/cycles:0};
+}
+
+/* 网格搜索推荐 / 基线 */
+function searchVec(op){
+  const axes=op.tunAxes, A0=op.optMap[axes[0]], A1=axes[1]!=null?op.optMap[axes[1]]:[null];
+  let best=1e30,rec=null;
+  for(const u of (op.hasUnroll?[1,2,4,8]:[1]))for(const db of [true,false])for(const v0 of A0)for(const v1 of A1){
+    const c={unroll:u,db}; c['t'+axes[0]]=v0; if(axes[1]!=null)c['t'+axes[1]]=v1;
+    const r=vecMetrics(op,c); if(r.valid&&r.cycles<best){best=r.cycles;rec=c;}
+  }
+  const baseC={unroll:1,db:false}; baseC['t'+axes[0]]=op.optMap[axes[0]][0]; if(axes[1]!=null)baseC['t'+axes[1]]=op.optMap[axes[1]][0];
+  return {rec,base:baseC};
+}
+function searchCube(op){
+  const O=[64,128,256,512]; let best=1e30,rec=null;
+  for(const tM of O)for(const tN of O)for(const tK of O)for(const u of (op.hasUnroll?[1,2,4,8]:[1]))for(const db of [true,false])for(const al of [true,false]){
+    const c={tileM:tM,tileN:tN,tileK:tK,unroll:u,db,align:al};
+    const r=cubeMetrics(op,c); if(r.valid&&r.cycles<best){best=r.cycles;rec=c;}
+  }
+  return {rec,base:{tileM:64,tileN:64,tileK:64,unroll:1,db:false,align:false}};
+}
+
+/* ---- 融合算子(Lightning Indexer Prolog)专属模型 ----
+   头部旋钮: token 维 unroll 长度 t_tile (= unroll_list[0])
+   每次迭代处理 t_tile 个 token,流经 4 个阶段(2× INT8/BF16 GEMM + 向量段) */
+function indexerMetrics(op,cfg){
+  const T=op.T, tt=cfg.ttile;
+  const nIter=ceilDiv(T,tt);
+  // 每迭代原始 Cube 周期(QL INT8 + Hadamard + Weight),与 t_tile 线性
+  const rawCubePerTok=512+256+64;            // = 832 cyc/token
+  const fillEff=tt/(tt+16);                   // Cube 阵列填充效率(M=t_tile 太小则浪费)
+  const cubePerIter=rawCubePerTok*tt/fillEff; // = 832*(tt+16)
+  const vecPerIter=160*tt;                    // 反量化/RoPE/assemble/quant/cast
+  const ovhPer=900;                           // 每迭代调度 + 权重预取 + 同步
+  let perIter,overlap=0;
+  if(cfg.db){ perIter=cubePerIter+ovhPer+0.15*vecPerIter; overlap=0.85*Math.min(vecPerIter,cubePerIter); }
+  else perIter=cubePerIter+vecPerIter+ovhPer;
+  const cycles=nIter*perIter;
+  const ub=tt/128;                            // L1/UB 预算: t_tile>128 溢出
+  const valid=ub<=1;
+  const useCube=T*rawCubePerTok;
+  return {kind:'fused',valid,cycles,ns:cycles/HW.freqGHz,latencyUs:cycles/(HW.freqGHz*1000),
+    nIter,tiles:nIter,ttile:tt,fillEff,
+    cubeUtil:Math.min(1,useCube/cycles),vecUtil:Math.min(1,(T*160)/cycles),
+    schedUtil:Math.min(1,nIter*ovhPer/cycles),ub,
+    overlap: cfg.db?Math.min(1,overlap*nIter/cycles):0, bubble:1-fillEff};
+}
+function searchIndexer(op){
+  let best=1e30,rec=null;
+  for(const ttile of op.optTtile)for(const db of [true,false]){
+    const r=indexerMetrics(op,{ttile,db}); if(r.valid&&r.cycles<best){best=r.cycles;rec={ttile,db};}
+  }
+  return {rec,base:{ttile:8,db:false}};
+}
+function buildIndexer(){
+  const op={id:'indexer',name:'lightning_indexer_prolog',file:'lightning_indexer_prolog_quant.py',
+    kernel:'quant_lightning_indexer_prolog_kernel',kind:'fused',tuneMode:'unroll',
+    dtype:'INT8·BF16 (混合)',bytes:1,source:getSrc('src-indexer'),builtin:true,hasUnroll:true,
+    detected:['@frontend.jit','loop_unroll','unroll_list','matmul×3','set_cube_tile_shapes','set_vec_tile_shapes','quant_tensor','DT_INT8','DT_BF16'],
+    T:2048, dims:{q_lora_rank:1024,idx_nq:64,head_dim:128,rope_dim:64,h:4096},
+    tileApi:'unroll', tileRegex:/IndexerPrologQuantConfig\(unroll_list=\[/, optTtile:[8,16,32,64,128,256]};
+  op.model=(c)=>indexerMetrics(op,c);
+  op.params=[{key:'ttile',label:'Token Unroll 长度',api:'loop_unroll · unroll_list[0]',options:op.optTtile}];
+  op.toggles=[{key:'db',label:'Vector Double Buffer',api:'vec_nbuffer_setting {0:2}'}];
+  op.cfg={ttile:128,db:true};
+  const sr=searchIndexer(op); op.recommend=sr.rec; op.baseline=sr.base;
+  return op;
+}
+
+/* ============================================================
+   静态分析器: 源码 → 算子描述 + 推荐
+   ============================================================ */
+function genOptions(dim,must){
+  const set=new Set(); for(let v=1;v<=dim;v*=2)set.add(v); set.add(dim); if(must&&must<=dim)set.add(must);
+  let o=[...set].filter(v=>v<=dim).sort((a,b)=>a-b);
+  if(o.length>6)o=o.slice(o.length-6);
+  if(must&&must<=dim&&!o.includes(must)){o.push(must);o.sort((a,b)=>a-b);}
+  return o;
+}
+function parseNums(str){return str.split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x));}
+
+function analyze(src,name){
+  const s=src;
+  const dm=s.match(/DT_(FP32|FP16|BF16|INT8|INT32)/);
+  const dtype=dm?dm[1]:'FP16'; const bytes=DT_BYTES[dtype];
+  const hasCube=/set_cube_tile_shapes|SetCubeTile|\bmatmul\b|\bMatmul\b/.test(s);
+  const hasVec=/set_vec_tile_shapes|SetVecTile/.test(s);
+  const kind = (hasCube&&hasVec)?'fused' : hasCube?'cube' : 'vector';
+  const detected=[];
+  if(/@pypto\.frontend\.jit/.test(s))detected.push('@frontend.jit');
+  if(hasVec)detected.push('set_vec_tile_shapes');
+  if(/set_cube_tile_shapes|SetCubeTile/.test(s))detected.push('set_cube_tile_shapes');
+  if(/\bmatmul\b|\bMatmul\b/.test(s))detected.push('matmul');
+  const hasUnroll=/unroll/i.test(s);
+  if(hasUnroll)detected.push('unroll');
+  if(/double_buffer|nbuffer|enable_double/i.test(s))detected.push('double_buffer');
+  detected.push('DT_'+dtype);
+
+  const knm=s.match(/def\s+(\w+_kernel)\s*\(/)||s.match(/def\s+(\w+)\s*\(\s*\n?\s*\w+\s*:\s*pypto\.Tensor/);
+  const kernel=knm?knm[1]:(name||'custom_kernel');
+  const unary=/softmax|relu|\bexp\b|sigmoid|\bsqrt\b|gelu|\bneg\b|rsqrt|\babs\b/.test(s) && !/\bx\s*[\+\*]\s*y\b|\+ y|x \*/.test(s);
+
+  const op={id:'op_'+Math.random().toString(36).slice(2,8),name:name||kernel,kernel,kind,dtype,bytes,source:src,detected,hasUnroll,
+            nIn: unary?1:2, nOut:1};
+
+  if(kind==='cube'||kind==='fused'){
+    let P={M:4096,N:4096,K:4096};
+    const ct=s.match(/set_cube_tile_shapes\s*\(([^)]*)\)/)||s.match(/SetCubeTile\s*\(\s*\{([^}]*)\}/);
+    const shp=s.match(/shape\s*=\s*\(([^)]*)\)/);
+    if(shp){const n=parseNums(shp[1]); if(n.length>=3){P={M:n[0],N:n[1],K:n[2]};}}
+    op.problem=P; op.tileApi='cube';
+    op.tileRegex=/set_cube_tile_shapes\s*\(|SetCubeTile\s*\(/;
+    let cur={tileM:128,tileN:128,tileK:64,unroll:1,db:/double|nbuffer/.test(s),align:false};
+    if(ct){const n=parseNums(ct[1]); if(n.length>=3){cur.tileM=n[0];cur.tileN=n[1];cur.tileK=n[2];}}
+    op.cfg=cur;
+    const sr=searchCube(op); op.recommend=sr.rec; op.baseline=sr.base;
+    op.params=[
+      {key:'tileM',label:'Cube Tile · M',api:'SetCubeTile({M,·,·})',options:[64,128,256,512]},
+      {key:'tileN',label:'Cube Tile · N',api:'SetCubeTile({·,N,·})',options:[64,128,256,512]},
+      {key:'tileK',label:'Cube Tile · K',api:'SetCubeTile({·,·,K})',options:[64,128,256,512]},
+    ];
+    if(hasUnroll) op.params.push({key:'unroll',label:'循环展开',api:'unroll',options:[1,2,4,8]});
+    op.toggles=[{key:'db',label:'Double Buffer 流水',api:'enable_double_buffer'},
+                {key:'align',label:'MatMul / Vector 输出对齐',api:'消除流水气泡'}];
+    op.model=(c)=>cubeMetrics(op,c); op.tuneMode='cube';
+  } else {
+    let shape=null;
+    const shp=s.match(/shape\s*=\s*\(([^)]*)\)/); if(shp)shape=parseNums(shp[1]);
+    const vt=s.match(/set_vec_tile_shapes\s*\(([^)]*)\)/); const vtile=vt?parseNums(vt[1]):null;
+    if(!shape) shape = vtile? vtile.slice() : [1,4,1,64];
+    while(shape.length<4) shape.push(1);
+    op.shape=shape; op.tileApi='vec'; op.tileRegex=/set_vec_tile_shapes\s*\(/;
+    // 选两个最大且 >1 的轴作为可调
+    const order=shape.map((d,i)=>i).filter(i=>shape[i]>1).sort((a,b)=>shape[b]-shape[a]);
+    const tunAxes=order.slice(0,2).sort((a,b)=>a-b);
+    op.tunAxes=tunAxes.length?tunAxes:[shape.indexOf(Math.max(...shape))];
+    op.tunSet=new Set(op.tunAxes);
+    op.optMap={};
+    op.tunAxes.forEach(i=>op.optMap[i]=genOptions(shape[i], vtile?vtile[i]:null));
+    const cur={unroll:1,db:true};
+    op.tunAxes.forEach(i=>{ const must=vtile&&op.optMap[i].includes(vtile[i])?vtile[i]:op.optMap[i][op.optMap[i].length-1]; cur['t'+i]=must; });
+    op.cfg=cur;
+    const sr=searchVec(op); op.recommend=sr.rec; op.baseline=sr.base;
+    op.params=op.tunAxes.map(i=>({key:'t'+i,label:'Tile · 轴'+i,api:'shape['+i+']='+shape[i],options:op.optMap[i]}));
+    if(hasUnroll) op.params.push({key:'unroll',label:'循环展开',api:'unroll',options:[1,2,4,8]});
+    op.toggles=[{key:'db',label:'Double Buffer 流水',api:'搬运 / 计算重叠'}];
+    op.model=(c)=>vecMetrics(op,c); op.tuneMode='vec';
+  }
+  return op;
+}
+
+/* ============================================================
+   算子注册表 + 初始化
+   ============================================================ */
+const OPERATORS={}; let activeId=null;
+function getSrc(id){return document.getElementById(id).textContent.replace(/^\n/,'').replace(/\n$/,'');}
+
+function registerBuiltin(){
+  const idx=buildIndexer(); OPERATORS[idx.id]=idx;
+  const a=analyze(getSrc('src-hello'),'hello_world'); a.id='hello'; a.file='hello_world.py'; a.builtin=true;
+  const b=analyze(getSrc('src-veclarge'),'scaled_add'); b.id='veclarge'; b.file='scaled_add.py'; b.builtin=true;
+  OPERATORS[a.id]=a; OPERATORS[b.id]=b;
+}
+
+/* ============================================================
+   渲染
+   ============================================================ */
+const KIND_LABEL={vector:'向量算子 (Vector)',cube:'矩阵算子 (Cube/MatMul)',fused:'融合算子 (Cube+Vector)'};
+const KIND_BADGE={vector:'vec',cube:'cube',fused:'fused'};
+
+function renderSidebar(){
+  const list=document.getElementById('opList'); list.innerHTML='';
+  Object.values(OPERATORS).forEach(op=>{
+    const d=document.createElement('div');
+    d.className='op-item'+(op.id===activeId?' sel':'');
+    d.innerHTML='<span class="ico" style="color:#519aba">⟨⟩</span><span class="nm">'+(op.file||op.name)+'</span>'+
+      '<span class="st '+(op.builtin?KIND_BADGE[op.kind]:'custom')+'">'+(op.builtin?KIND_BADGE[op.kind]:'自定义')+'</span>';
+    d.onclick=()=>switchOp(op.id);
+    list.appendChild(d);
+  });
+  document.getElementById('actBadge').textContent=Object.keys(OPERATORS).length;
+}
+function renderTabs(){
+  const t=document.getElementById('tabs'); t.innerHTML='';
+  Object.values(OPERATORS).forEach(op=>{
+    const d=document.createElement('div'); d.className='tab'+(op.id===activeId?' active':'');
+    d.innerHTML='<span class="ico">⟨⟩</span>'+(op.file||op.name+'.py');
+    d.onclick=()=>switchOp(op.id); t.appendChild(d);
+  });
+}
+
+function mountControls(op){
+  const c=document.getElementById('ctrls'); c.innerHTML='';
+  op.params.forEach(p=>{
+    const wrap=document.createElement('div'); wrap.className='ctrl';
+    wrap.innerHTML='<div class="clab"><span class="name">'+p.label+' <span class="api">'+p.api+'</span></span><span class="val" id="val-'+p.key+'"></span></div><div class="seg" id="seg-'+p.key+'"></div>';
+    c.appendChild(wrap);
+    const seg=wrap.querySelector('#seg-'+p.key);
+    p.options.forEach(v=>{
+      const b=document.createElement('button'); b.textContent=v; b.dataset.v=v;
+      if(v===op.recommend[p.key]) b.innerHTML=v+'<span class="star">★</span>';
+      b.onclick=()=>{op.cfg[p.key]=v;render();flashTile();};
+      seg.appendChild(b);
+    });
+  });
+  op.toggles.forEach(tg=>{
+    const wrap=document.createElement('div'); wrap.className='toggle-row';
+    wrap.innerHTML='<div class="tt">'+tg.label+'<span class="api">'+tg.api+'</span></div><div class="sw" id="sw-'+tg.key+'"></div>';
+    c.appendChild(wrap);
+    wrap.querySelector('#sw-'+tg.key).onclick=()=>{op.cfg[tg.key]=!op.cfg[tg.key];render();flashTile();};
+  });
+  // bars container labels
+  const bars=document.getElementById('bars');
+  const barSpec = op.tuneMode==='vec'
+    ? [['Vector 单元利用率','vec','#b07ec9'],['MTE2 搬运占比','mte','#4fa3d1'],['循环开销占比','ovh','var(--gold)'],['UB 占用 (3 buffer)','ub','var(--green-bar)']]
+    : op.tuneMode==='unroll'
+    ? [['Cube 算力利用率','cube','#dcaa3c'],['Vector 利用率','vec','#b07ec9'],['调度开销占比','sched','var(--gold)'],['L1/UB 占用','ub','var(--green-bar)']]
+    : [['Cube 算力利用率','cube','var(--gold)'],['MTE2 搬运占比','mte','#4fa3d1'],['L0C 占用 (M×N)','l0c','var(--green-bar)'],['L0A 占用 (M×K)','l0a','var(--green-bar)']];
+  bars.innerHTML=barSpec.map(b=>'<div class="bar-item"><div class="bt"><span class="bn">'+b[0]+'</span><span class="bv" id="bv-'+b[1]+'"></span></div><div class="bar-track"><div class="bar-fill" id="bf-'+b[1]+'" style="background:'+b[2]+'"></div></div></div>').join('');
+  // swim legend
+  document.getElementById('swimLegend').innerHTML = op.tuneMode==='vec'
+    ? '<span><i style="background:#4fa3d1"></i>MTE2</span><span><i style="background:#b07ec9"></i>Vector</span><span><i style="background:#7ec99a"></i>MTE3</span><span><i style="background:#3a1414"></i>循环开销</span>'
+    : '<span><i style="background:#4fa3d1"></i>MTE2</span><span><i style="background:#dcaa3c"></i>Cube</span><span><i style="background:#b07ec9"></i>Vector</span><span><i style="background:#7ec99a"></i>MTE3</span><span><i style="background:#3a1414"></i>'+(op.tuneMode==='unroll'?'填充浪费':'气泡')+'</span>';
+  document.getElementById('swimFoot').innerHTML = op.tuneMode==='vec'
+    ? '<div class="fm"><div class="v" id="foot-a">—</div><div class="l">迭代次数</div></div><div class="fm"><div class="v" id="foot-b">—</div><div class="l">总周期</div></div><div class="fm"><div class="v" id="foot-c">—</div><div class="l">循环开销占比</div></div><div class="fm"><div class="v good" id="foot-d">—</div><div class="l">搬运/计算重叠</div></div>'
+    : op.tuneMode==='unroll'
+    ? '<div class="fm"><div class="v" id="foot-a">—</div><div class="l">Token 组数(迭代)</div></div><div class="fm"><div class="v" id="foot-b">—</div><div class="l">总耗时(µs)</div></div><div class="fm"><div class="v" id="foot-c">—</div><div class="l">Cube 填充效率</div></div><div class="fm"><div class="v good" id="foot-d">—</div><div class="l">向量/计算重叠</div></div>'
+    : '<div class="fm"><div class="v" id="foot-a">—</div><div class="l">Tile 总数</div></div><div class="fm"><div class="v" id="foot-b">—</div><div class="l">总周期</div></div><div class="fm"><div class="v" id="foot-c">—</div><div class="l">流水气泡占比</div></div><div class="fm"><div class="v good" id="foot-d">—</div><div class="l">搬运/计算重叠</div></div>';
+}
+
+function switchOp(id){
+  activeId=id; const op=OPERATORS[id];
+  document.getElementById('tbName').textContent=op.file||op.name+'.py';
+  document.getElementById('breadcrumb').innerHTML='pypto <span class="sep">›</span> '+(op.builtin?'examples':'custom')+' <span class="sep">›</span> '+(op.file||op.name)+' <span class="sep">›</span> <span style="color:#dcdcaa">'+op.kernel+'</span>';
+  document.getElementById('rpSub').textContent=op.kernel+' · '+KIND_LABEL[op.kind]+' · '+op.dtype+' · Ascend 910B';
+  document.getElementById('sweepTitle').textContent= op.tuneMode==='vec'? '调优空间扫描（扫 Tile · 轴'+op.tunAxes[op.tunAxes.length-1]+'）': op.tuneMode==='unroll'?'调优空间扫描（扫 Token Unroll 长度）':'调优空间扫描（扫 Cube Tile · N）';
+  document.getElementById('swimTitle').textContent= op.tuneMode==='vec'? '向量流水线泳道图（按迭代展开）': op.tuneMode==='unroll'?'融合流水泳道图（单次 Token-Tile 迭代 · 4 阶段）':'Cube/Vector 流水线泳道图（稳态窗口）';
+  renderSidebar(); renderTabs(); mountControls(op); render();
+  setTimeout(()=>{const el=document.getElementById('row-'+tileRowNo);if(el)el.scrollIntoView({block:'center'});},60);
+}
+
+/* ============================================================
+   API hover 浮层(loop_unroll 重点解释,含可视化)
+   ============================================================ */
+const API_HOVER=new Set(['loop_unroll','loop','matmul','set_vec_tile_shapes','set_cube_tile_shapes']);
+const LOOP_UNROLL_SVG=
+ '<svg viewBox="0 0 352 92" width="100%" xmlns="http://www.w3.org/2000/svg">'+
+ '<rect x="4" y="14" width="118" height="26" rx="4" fill="#dcaa3c"/>'+
+ '<rect x="126" y="14" width="118" height="26" rx="4" fill="#dcaa3c"/>'+
+ '<rect x="248" y="14" width="58" height="26" rx="4" fill="#c586c0"/>'+
+ '<rect x="310" y="14" width="28" height="26" rx="4" fill="#4fa3d1"/>'+
+ '<text x="63" y="31" text-anchor="middle" font-family="IBM Plex Mono" font-size="12" font-weight="700" fill="#1a1a1a">×4</text>'+
+ '<text x="185" y="31" text-anchor="middle" font-family="IBM Plex Mono" font-size="12" font-weight="700" fill="#1a1a1a">×4</text>'+
+ '<text x="277" y="31" text-anchor="middle" font-family="IBM Plex Mono" font-size="12" font-weight="700" fill="#1a1a1a">×2</text>'+
+ '<text x="324" y="31" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" font-weight="700" fill="#1a1a1a">×1</text>'+
+ '<rect x="4" y="52" width="334" height="18" rx="3" fill="#11151a" stroke="#2b333b"/>'+
+ '<line x1="124" y1="52" x2="124" y2="70" stroke="#44505c" stroke-dasharray="2 2"/>'+
+ '<line x1="246" y1="52" x2="246" y2="70" stroke="#44505c" stroke-dasharray="2 2"/>'+
+ '<line x1="308" y1="52" x2="308" y2="70" stroke="#44505c" stroke-dasharray="2 2"/>'+
+ '<text x="171" y="65" text-anchor="middle" font-size="9.5" fill="#6f7d8a">迭代区间 [0, t)</text>'+
+ '<text x="4" y="86" font-size="9" fill="#8a9aa8">0</text>'+
+ '<text x="338" y="86" text-anchor="end" font-size="9" fill="#8a9aa8">t = 11</text>'+
+ '</svg>';
+const API_DOCS={
+  loop_unroll:{
+    title:'pypto.loop_unroll', tag:'控制流 · 循环展开',
+    summary:'支持循环展开的循环迭代器。功能与 <code>pypto.loop</code> 类似,额外通过 <code>unroll_list</code> 提供多种展开方式以减少循环开销、提升流水。',
+    diagram:LOOP_UNROLL_SVG,
+    cap:'<b>unroll_list=[4, 2, 1]</b> 覆盖 11 次迭代 → 2×(展开因子 4) + 1×(×2) + 1×(×1 收尾)。因子越大,每次迭代体内重复越多、循环开销越省;余量由更小因子<b>贪心覆盖</b>,末尾必含 1。',
+    sig:'loop_unroll(start, stop, step, *,\n            name, idx_name,\n            unroll_list, submit_before_loop)\n  → Iterator[(idx, unroll_factor)]',
+    params:[
+      ['start/stop/step','循环起止与步长。单参数 = loop_unroll(0, stop, 1);双参数补 step=1。'],
+      ['unroll_list','展开因子集合(默认空)。因子 n:步长变 step×n、每次迭代执行 n 个循环体。列表会排序去重且总是包含 1、从大到小排列;每个因子生成一条独立代码路径。'],
+      ['name / idx_name','循环与索引变量的标识名。'],
+      ['submit_before_loop','循环前是否强制把累积计算提交到 AICore 执行(默认 False)。'],
+    ],
+    ret:'迭代器,每次产出 <code>(idx, unroll_factor)</code>:当前索引 + 本次选中的展开因子。',
+    constraint:'多层循环都使用 loop_unroll + unroll_list 会大幅增加编译图数量,拖慢编译性能。',
+    note:'本算子用 <code>unroll_list=[128, 64, 32, 16, 8, 1]</code> 覆盖 t 个 token;调大首项 → GEMM 的 M 维填满 Cube 阵列(见右侧 What-if 面板)。',
+    doc:'https://pypto.gitcode.com/api/controlflow/pypto-loop_unroll.html'
+  },
+  loop:{ title:'pypto.loop', tag:'控制流 · 循环',
+    summary:'基础循环迭代器,按 start/stop/step 生成循环。需要多展开方式时改用 <code>loop_unroll</code>。',
+    doc:'https://pypto.gitcode.com/api/controlflow/pypto-loop.html' },
+  matmul:{ title:'pypto.matmul', tag:'操作 · 矩阵乘',
+    summary:'矩阵乘法算子(在 Cube 单元上执行),可指定输出 dtype(如 INT32 累加)。本算子的 Query-Linear / Hadamard / Weight 三处 GEMM 均由它实现。',
+    doc:'https://pypto.gitcode.com/api/operation/pypto-matmul.html' },
+  set_vec_tile_shapes:{ title:'pypto.set_vec_tile_shapes', tag:'配置 · 向量 Tiling',
+    summary:'设置向量(Vector)计算的 Tile 形状,决定每次迭代处理的张量分块大小,直接影响 UB 占用、迭代次数与向量单元利用率。',
+    note:'本 Demo 中是向量算子的主要调优旋钮。',
+    doc:'https://pypto.gitcode.com/api/config/pypto-set_vec_tile_shapes.html' },
+  set_cube_tile_shapes:{ title:'pypto.set_cube_tile_shapes', tag:'配置 · 矩阵 Tiling',
+    summary:'设置矩阵(Cube/MatMul)计算的 Tile 分块(M, N, K),影响 L0 数据复用、算力利用率与片上 buffer 占用。',
+    doc:'https://pypto.gitcode.com/api/config/pypto-set_cube_tile_shapes.html' },
+};
+function apiCardHtml(k){
+  const d=API_DOCS[k]; if(!d)return'';
+  let h='<div class="ap-head"><span class="ap-title">'+d.title+'</span><span class="ap-tag">'+d.tag+'</span></div>';
+  h+='<div class="ap-sum">'+d.summary+'</div>';
+  if(d.diagram) h+='<div class="ap-diag">'+d.diagram+(d.cap?'<div class="cap">'+d.cap+'</div>':'')+'</div>';
+  if(d.sig) h+='<div class="ap-sig">'+d.sig+'</div>';
+  if(d.params){ h+='<div class="ap-sec">参数</div>'; d.params.forEach(p=>h+='<div class="ap-p"><span class="ap-pk">'+p[0]+'</span><span class="ap-pd">'+p[1]+'</span></div>'); }
+  if(d.ret) h+='<div class="ap-sec">返回</div><div class="ap-ret">'+d.ret+'</div>';
+  if(d.constraint) h+='<div class="ap-warn">⚠ '+d.constraint+'</div>';
+  if(d.note) h+='<div class="ap-note">💡 '+d.note+'</div>';
+  if(d.doc) h+='<a class="ap-doc" href="'+d.doc+'" target="_blank" rel="noopener">查看官方文档 ↗</a>';
+  return h;
+}
+function initApiHover(){
+  const pop=document.getElementById('apiPop'), code=document.getElementById('code'); let timer=null;
+  function show(el){
+    const k=el.dataset.api; if(!API_DOCS[k])return;
+    clearTimeout(timer); pop.innerHTML=apiCardHtml(k); pop.style.display='block';
+    const r=el.getBoundingClientRect(), pw=pop.offsetWidth, ph=pop.offsetHeight, m=8;
+    let left=Math.min(Math.max(m,r.left-4), window.innerWidth-pw-m);
+    let top=r.bottom+7; if(top+ph>window.innerHeight-m) top=Math.max(m, r.top-ph-7);
+    pop.style.left=left+'px'; pop.style.top=top+'px';
+  }
+  function hideSoon(){ timer=setTimeout(()=>{pop.style.display='none';},240); }
+  code.addEventListener('mouseover',e=>{const el=e.target.closest&&e.target.closest('.api-link'); if(el)show(el);});
+  code.addEventListener('mouseout',e=>{const el=e.target.closest&&e.target.closest('.api-link'); if(el)hideSoon();});
+  pop.addEventListener('mouseenter',()=>clearTimeout(timer));
+  pop.addEventListener('mouseleave',hideSoon);
+}
+
+/* ---- 语法高亮 ---- */
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+const PYKW=new Set(['import','from','as','def','return','if','elif','else','for','while','in','not','and','or','is','None','True','False','try','except','finally','raise','with','class','lambda','pass','break','continue']);
+function hlLine(line,state){
+  let i=0,n=line.length,html='';
+  if(state.triple){const idx=line.indexOf(state.triple);
+    if(idx===-1)return{html:'<span class="s">'+esc(line)+'</span>'};
+    html+='<span class="s">'+esc(line.slice(0,idx+3))+'</span>';i=idx+3;state.triple=null;}
+  while(i<n){const ch=line[i];
+    if(ch==='#'){html+='<span class="c">'+esc(line.slice(i))+'</span>';break;}
+    if(line.startsWith('"""',i)||line.startsWith("'''",i)){const q=line.substr(i,3),e=line.indexOf(q,i+3);
+      if(e===-1){html+='<span class="s">'+esc(line.slice(i))+'</span>';state.triple=q;break;}
+      html+='<span class="s">'+esc(line.slice(i,e+3))+'</span>';i=e+3;continue;}
+    if(ch==='"'||ch==="'"){let j=i+1;while(j<n){if(line[j]==='\\'){j+=2;continue;}if(line[j]===ch){j++;break;}j++;}
+      html+='<span class="s">'+esc(line.slice(i,j))+'</span>';i=j;continue;}
+    if(ch==='@'){let j=i+1;while(j<n&&/[A-Za-z0-9_.]/.test(line[j]))j++;html+='<span class="f">'+esc(line.slice(i,j))+'</span>';i=j;continue;}
+    if(/[0-9]/.test(ch)&&!/[A-Za-z0-9_]/.test(line[i-1]||'')){let j=i;while(j<n&&/[0-9eExXa-fA-F._]/.test(line[j]))j++;html+='<span class="n">'+esc(line.slice(i,j))+'</span>';i=j;continue;}
+    if(/[A-Za-z_]/.test(ch)){let j=i;while(j<n&&/[A-Za-z0-9_]/.test(line[j]))j++;const w=line.slice(i,j);
+      if((w==='f'||w==='r'||w==='b')&&(line[j]==='"'||line[j]==="'")){const q=line[j];let k=j+1;while(k<n){if(line[k]==='\\'){k+=2;continue;}if(line[k]===q){k++;break;}k++;}html+='<span class="s">'+esc(line.slice(i,k))+'</span>';i=k;continue;}
+      let cls=''; if(PYKW.has(w))cls='k'; else if(line[j]==='(')cls='f'; else if(/[A-Z]/.test(w[0]))cls='t';
+      else if(['pypto','os','sys','np','torch','argparse'].includes(w))cls='ns';
+      if(cls==='f'&&API_HOVER.has(w)){ html+='<span class="f api-link" data-api="'+w+'">'+esc(w)+'</span>'; i=j; continue; }
+      html+=cls?'<span class="'+cls+'">'+esc(w)+'</span>':esc(w);i=j;continue;}
+    if('=+-*/%<>!&|^~:,.()[]{}'.includes(ch)){html+='<span class="o">'+esc(ch)+'</span>';i++;continue;}
+    html+=esc(ch);i++;}
+  return {html};
+}
+function tileLineHtml(op,indent){
+  if(op.tuneMode==='unroll'){
+    return indent+'<span class="ns">tile_config</span> <span class="o">=</span> <span class="f">IndexerPrologQuantConfig</span><span class="o">(</span>unroll_list<span class="o">=</span><span class="o">[</span>'+
+      '<span class="n hl" id="cd-ttile">'+op.cfg.ttile+'</span><span class="o">,</span> <span class="n">64</span><span class="o">,</span> <span class="n">32</span><span class="o">,</span> <span class="n">16</span><span class="o">,</span> <span class="n">8</span><span class="o">,</span> <span class="n">1</span><span class="o">]</span><span class="o">)</span>';
+  }
+  if(op.tuneMode==='vec'){
+    const parts=op.shape.map((d,i)=> op.tunSet.has(i)
+      ? '<span class="n hl" id="cd-t'+i+'">'+op.cfg['t'+i]+'</span>'
+      : '<span class="n">'+d+'</span>');
+    return indent+'<span class="ns">pypto</span><span class="o">.</span><span class="f api-link" data-api="set_vec_tile_shapes">set_vec_tile_shapes</span><span class="o">(</span>'+parts.join('<span class="o">,</span> ')+'<span class="o">)</span>';
+  }
+  return indent+'<span class="ns">pypto</span><span class="o">.</span><span class="f api-link" data-api="set_cube_tile_shapes">set_cube_tile_shapes</span><span class="o">(</span>'+
+    '<span class="n hl" id="cd-tileM">'+op.cfg.tileM+'</span><span class="o">,</span> <span class="n hl" id="cd-tileN">'+op.cfg.tileN+'</span><span class="o">,</span> <span class="n hl" id="cd-tileK">'+op.cfg.tileK+'</span><span class="o">)</span>';
+}
+function tileTuple(op,cfg){
+  if(op.tuneMode==='unroll') return '['+cfg.ttile+', …]';
+  if(op.tuneMode==='vec') return '('+op.shape.map((d,i)=>op.tunSet.has(i)?cfg['t'+i]:d).join(',')+')';
+  return '('+cfg.tileM+','+cfg.tileN+','+cfg.tileK+')';
+}
+function isRecTile(op){
+  if(op.tuneMode==='unroll') return op.cfg.ttile===op.recommend.ttile;
+  if(op.tuneMode==='vec') return op.tunAxes.every(i=>op.cfg['t'+i]===op.recommend['t'+i]);
+  return op.cfg.tileM===op.recommend.tileM&&op.cfg.tileN===op.recommend.tileN&&op.cfg.tileK===op.recommend.tileK;
+}
+function applyRecTile(op){
+  if(op.tuneMode==='unroll') op.cfg.ttile=op.recommend.ttile;
+  else if(op.tuneMode==='vec') op.tunAxes.forEach(i=>op.cfg['t'+i]=op.recommend['t'+i]);
+  else {op.cfg.tileM=op.recommend.tileM;op.cfg.tileN=op.recommend.tileN;op.cfg.tileK=op.recommend.tileK;}
+}
+
+let tileRowNo=0;
+function renderCode(op,r){
+  const lines=op.source.split('\n'); const state={triple:null};
+  let html='',ln=0; tileRowNo=0;
+  lines.forEach(raw=>{
+    ln++; const isTile=op.tileRegex.test(raw)&&tileRowNo===0;
+    let body;
+    if(isTile){tileRowNo=ln; const indent=(raw.match(/^\s*/)||[''])[0];
+      body=tileLineHtml(op,indent);
+      const rec=isRecTile(op);
+      const apiName= op.tuneMode==='unroll'?'unroll_list': op.tuneMode==='vec'?'set_vec_tile_shapes':'set_cube_tile_shapes';
+      const lensTxt= rec
+        ? '<span class="ai">✓ 昇腾助手</span> · '+(op.tuneMode==='unroll'?'unroll_list[0]='+op.cfg.ttile:'tile '+tileTuple(op,op.cfg))+' 为该算子最优配置'
+        : '<span class="ai">✨ 昇腾助手推荐</span> '+apiName+' '+tileTuple(op,op.recommend)+' · <a id="lens-apply">应用</a> <span class="delta">预计 '+fmt(op.model(op.baseline).cycles/op.model(op.recommend).cycles,1)+'× vs 基线</span>';
+      html+='<div class="lens-row"><div class="lens-gutter"></div><div class="lens">'+lensTxt+'</div></div>';
+    } else body=hlLine(raw,state).html;
+    html+='<div class="row'+(isTile?' cur':'')+'" id="row-'+ln+'"><div class="gutter">'+(isTile?'<span class="marker">◆</span> ':'')+ln+'</div><div class="ln">'+body+'</div></div>';
+  });
+  document.getElementById('code').innerHTML=html;
+  const la=document.getElementById('lens-apply'); if(la)la.onclick=()=>{applyRecTile(op);render();flashTile();};
+}
+function flashTile(){const el=document.getElementById('row-'+tileRowNo);if(el){el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');el.scrollIntoView({block:'center',behavior:'smooth'});}}
+
+function setBar(key,val,suffix){
+  const f=document.getElementById('bf-'+key),v=document.getElementById('bv-'+key); if(!f)return;
+  f.style.width=Math.min(100,val*100)+'%'; f.style.background= val>1?'var(--red)': f.style.background;
+  v.textContent=fmt(val*100,0)+'%'+(suffix||'');
+}
+
+function render(){
+  const op=OPERATORS[activeId], cfg=op.cfg, r=op.model(cfg);
+  const baseR=op.model(op.baseline), recR=op.model(op.recommend);
+  const speed=baseR.cycles/r.cycles, recspeed=baseR.cycles/recR.cycles;
+
+  // controls state
+  op.params.forEach(p=>{
+    const seg=document.getElementById('seg-'+p.key);
+    [...seg.children].forEach(b=>b.classList.toggle('on',+b.dataset.v===cfg[p.key]));
+    const vl=document.getElementById('val-'+p.key); vl.textContent=cfg[p.key];
+    vl.classList.toggle('rec-match',cfg[p.key]===op.recommend[p.key]);
+  });
+  op.toggles.forEach(tg=>document.getElementById('sw-'+tg.key).classList.toggle('on',cfg[tg.key]));
+
+  // analysis 摘要
+  const detChips=op.detected.map(d=>'<span class="chip">'+d+'</span>').join('');
+  const shapeStr= op.tuneMode==='vec'? '('+op.shape.join(', ')+') · '+prod(op.shape)+' 元素'
+    : op.tuneMode==='unroll'? 't='+op.T+' tokens · q_lora '+op.dims.q_lora_rank+' · idx_nq '+op.dims.idx_nq+' · head '+op.dims.head_dim+' · h '+op.dims.h
+    : 'M×N×K = '+op.problem.M+'×'+op.problem.N+'×'+op.problem.K;
+  document.getElementById('analysis').innerHTML=
+    '<div class="at">⚙ 代码分析摘要 '+(op.builtin?'':'· 自定义上传')+'</div>'+
+    '<div class="grid">'+
+    '<span class="lab">算子类型</span><span class="val">'+KIND_LABEL[op.kind]+'</span>'+
+    '<span class="lab">Kernel</span><span class="val">'+op.kernel+'</span>'+
+    '<span class="lab">数据类型</span><span class="val">'+op.dtype+(op.tuneMode==='unroll'?'':'（'+op.bytes+'B）')+'</span>'+
+    '<span class="lab">'+(op.tuneMode==='unroll'?'问题规模':op.tuneMode==='vec'?'张量形状':'问题规模')+'</span><span class="val">'+shapeStr+'</span>'+
+    '</div><div class="chips">'+detChips+'</div>';
+
+  // 告警
+  const ab=document.getElementById('alertBox'); ab.className='alert';
+  if(!r.valid){ ab.className='alert bad show'; ab.querySelector('.ai').textContent='⛔';
+    document.getElementById('alertText').innerHTML= op.tuneMode==='unroll'
+      ? '<b>配置非法:</b> Token Unroll 长度 <b>'+cfg.ttile+'</b> 超出 L1/UB 预算,无法编译。请减小到 ≤128。'
+      : '<b>配置非法:</b> 超出片上 Buffer 容量,无法编译。请减小 Tile 维度'+(cfg.db?',或关闭 Double Buffer。':'。');
+  } else if(isRecTile(op)){ ab.className='alert good show'; ab.querySelector('.ai').textContent='✓';
+    document.getElementById('alertText').innerHTML= op.tuneMode==='unroll'? '<b>当前 Token Unroll 长度已是助手推荐配置。</b>':'<b>当前 Tile 已是助手推荐配置。</b>';
+  } else if(op.tuneMode==='unroll'){ ab.className='alert warn show'; ab.querySelector('.ai').textContent='⚠';
+    document.getElementById('alertText').innerHTML='<b>Unroll 偏小:</b> 每次仅处理 <b>'+cfg.ttile+'</b> 个 token,Cube 阵列填充效率仅 <b>'+fmt(r.fillEff*100,0)+'%</b>,调度开销占比 <b>'+fmt(r.schedUtil*100,0)+'%</b>。';
+  } else if(op.tuneMode==='vec'&&r.ovhRatio>0.4){ ab.className='alert warn show'; ab.querySelector('.ai').textContent='⚠';
+    document.getElementById('alertText').innerHTML='<b>Tile 偏小:</b> 迭代 <b>'+r.nIter+'</b> 次,循环开销占比 <b>'+fmt(r.ovhRatio*100,0)+'%</b>。';
+  } else if(op.tuneMode==='cube'&&!cfg.align){ ab.className='alert warn show'; ab.querySelector('.ai').textContent='⚠';
+    document.getElementById('alertText').innerHTML='<b>未对齐:</b> 流水存在约 <b>'+fmt(r.bubble*100,0)+'%</b> 气泡,开启对齐可消除。';
+  }
+
+  // 指标
+  const heroIsUs = op.tuneMode!=='vec';
+  document.getElementById('m-hero').textContent= r.valid? (heroIsUs?fmt(r.latencyUs,0):fmt0(r.cycles)) : '—';
+  document.getElementById('m-hero-u').textContent= heroIsUs?'µs':'cycles';
+  document.getElementById('m-hero-l').innerHTML= op.tuneMode==='unroll'?'预计处理 '+op.T+' tokens 总耗时': heroIsUs?'预计单次执行耗时':'预计执行周期（≈ '+fmt(r.ns,0)+' ns @1.8GHz）';
+  document.getElementById('m-2').textContent= op.tuneMode==='vec'? r.nIter : op.tuneMode==='unroll'? r.nIter : fmt0(r.tiles);
+  document.getElementById('m-2-l').textContent= op.tuneMode==='unroll'? 'Token 组数(迭代)': op.tuneMode==='vec'? '迭代次数 num_iters':'Tile 总数';
+  document.getElementById('m-3').textContent= r.valid? fmt(speed,2):'—';
+  const tr=document.getElementById('m-tr');
+  if(r.valid){tr.textContent=(speed>=1?'▼ 快':'▲ 慢')+' '+fmt(Math.abs(1-1/speed)*100,0)+'%';tr.className='trend '+(speed>=1?'up':'down');}else tr.textContent='';
+
+  // bars
+  if(op.tuneMode==='vec'){ setBar('vec',r.vecUtil);setBar('mte',r.mteUtil);setBar('ovh',r.ovhRatio);setBar('ub',r.ub,r.ub<0.01?' (极小)':''); }
+  else if(op.tuneMode==='unroll'){ setBar('cube',r.cubeUtil);setBar('vec',r.vecUtil);setBar('sched',r.schedUtil);setBar('ub',r.ub); }
+  else { setBar('cube',r.cubeUtil);setBar('mte',r.mteUtil);setBar('l0c',r.l0c);setBar('l0a',r.l0a); }
+
+  // rec card
+  let reason;
+  if(op.tuneMode==='vec'){
+    reason='张量 <code>('+op.shape.join(',')+')</code>,'+op.dtype+' 向量算子。推荐 tile <code>'+tileTuple(op,op.recommend)+'</code>:'+
+      '在 UB 容量内尽量增大单 tile → 迭代降至 <code>'+recR.nIter+'</code> 次、向量单元（'+Math.floor(256/op.bytes)+' lane）高利用,循环开销最低。';
+  } else if(op.tuneMode==='unroll'){
+    reason='融合 Indexer Prolog(INT8 Query-Linear GEMM + 反量化/RoPE/Hadamard 向量段 + BF16 Weight GEMM)。头部旋钮为 <code>loop_unroll</code> 的 token 维 unroll 长度。推荐 <code>unroll_list[0]='+op.recommend.ttile+'</code>:'+
+      '每次迭代处理 '+op.recommend.ttile+' 个 token → GEMM 的 M 维填满 Cube 阵列(填充效率 <code>'+fmt(recR.fillEff*100,0)+'%</code>)、'+(op.recommend.db?'向量段经 <code>vec_nbuffer=2</code> 与 Cube 重叠、':'')+'每 token 调度开销摊薄到最低;再大则超出片上 buffer。这正对应真实 <code>unroll_list=[128, …]</code> 以 128 领衔的设计。';
+  } else {
+    reason='M×N×K=<code>'+op.problem.M+'×'+op.problem.N+'×'+op.problem.K+'</code> 的 '+op.dtype+' 矩阵算子。推荐 <code>SetCubeTile'+tileTuple(op,op.recommend)+'</code>:'+
+      '在 L0 容量内最大化数据复用,启用 <code>double_buffer</code> 重叠搬运与计算'+(op.hasUnroll?',<code>unroll='+op.recommend.unroll+'</code> 平衡 ILP':'')+(op.recommend.align?',并对齐输出消除气泡':'')+'。';
+  }
+  document.getElementById('recReason').innerHTML=reason;
+  document.getElementById('recBig').textContent=fmt(recspeed,1)+'×';
+  document.getElementById('recLbl').innerHTML='推荐配置相对基线 <code style="font-family:\'IBM Plex Mono\'">'+tileTuple(op,op.baseline)+'</code> 的预计提速';
+
+  document.getElementById('genNote').textContent= op.tuneMode==='vec'
+    ? '轴0/轴2 等形状为 1 的维度固定;'+(op.hasUnroll?'unroll 来自算子代码。':'当前算子代码未使用 unroll,故不显示该旋钮。')
+    : op.tuneMode==='unroll'
+    ? 'unroll_list 是该融合算子的核心调优项;t_tile 受 L1/UB 与寄存器压力约束,>128 会编译失败。Vector Double Buffer 对应 vec_nbuffer_setting。'
+    : 'Cube TileShape 受 L0A/L0B/L0C 容量约束;超限配置会被标红且无法编译。'+(op.hasUnroll?'':'(当前算子未使用 unroll)');
+
+  document.getElementById('status-speedup').textContent= r.valid? fmt(speed,2)+'×':'非法配置';
+  document.getElementById('status-cyc').textContent= r.valid? (heroIsUs?fmt(r.latencyUs,1)+' µs':fmt0(r.cycles)+' cycles'):'—';
+
+  // 终端 / 问题
+  document.getElementById('termBody').innerHTML=
+    '<div><span class="pmt">➜ '+(op.file||op.name)+'</span> <span class="dim">$</span> pypto build '+(op.file||op.name)+' --soc=910B</div>'+
+    '<div class="dim">[PyPTO] frontend.jit → Tensor/Tile/Block Graph → Kernel ... ok</div>'+
+    '<div class="dim">[Analyzer] 识别为 '+KIND_LABEL[op.kind]+',dtype='+op.dtype+',可调 API: '+op.detected.filter(x=>!x.startsWith('DT_')).join(', ')+'</div>'+
+    '<div><span class="acc">[Assistant]</span> 已生成关键参数推荐(tile '+tileTuple(op,op.recommend)+'),预计 '+fmt(recspeed,1)+'× 提速 →</div>'+
+    '<div><span class="pmt">➜ '+(op.file||op.name)+'</span> <span class="dim">$</span> <span style="opacity:.6">▌</span></div>';
+  document.getElementById('probBody').innerHTML= isRecTile(op)
+    ? '<div class="ok">✓ 未发现问题。当前配置为助手推荐的最优 Tile。</div>'
+    : '<div><span style="color:var(--gold)">⚠ tuning</span> <span class="dim">'+(op.file||op.name)+'</span> 当前 tile '+tileTuple(op,op.cfg)+' 偏离推荐 '+tileTuple(op,op.recommend)+'。</div>';
+  document.getElementById('stProblems').textContent= isRecTile(op)?'⊘ 0':'⚠ 1';
+
+  drawSwim(op,r); renderCode(op,r); drawSweep(op);
+}
+
+/* ---- 泳道图 ---- */
+function drawSwim(op,r){
+  if(op.tuneMode==='vec') drawSwimVec(op,r);
+  else if(op.tuneMode==='unroll') drawSwimFused(op,r);
+  else drawSwimCube(op,r);
+}
+function drawSwimFused(op,r){
+  const cfg=op.cfg, fb=Math.min(0.85, 16/cfg.ttile);
+  const stages=[['Query-Linear · INT8 GEMM',520,200],['Hadamard · GEMM',240,90],['Weight-Compute · GEMM',70,60]];
+  const loadW=110, storeW=70;
+  const Cube=[],Vec=[],M2=[{s:0,w:loadW}],M3=[],labels=[]; let cur=loadW;
+  stages.forEach((st)=>{
+    const w=st[1],vw=st[2],bub=w*fb;
+    Cube.push({s:cur,w:w,ovh:bub}); labels.push({s:cur,t:st[0]});
+    if(cfg.db){ Vec.push({s:cur+w*0.55,w:vw}); cur+=w+bub+Math.max(0,vw-w*0.45); }
+    else { Vec.push({s:cur+w+bub,w:vw}); cur+=w+bub+vw; }
+  });
+  M3.push({s:cur,w:storeW}); cur+=storeW;
+  const span=cur, px=v=>v/span*100;
+  let lab='<div style="position:relative;height:15px;margin-left:84px;margin-bottom:3px">';
+  labels.forEach(l=>lab+='<span style="position:absolute;left:'+px(l.s)+'%;font-size:9px;color:#caa96a;white-space:nowrap">▸'+l.t+'</span>');
+  lab+='</div>';
+  const L={MTE2:M2,Cube:Cube,Vector:Vec,MTE3:M3};
+  const colors={MTE2:'#4fa3d1',Cube:'#dcaa3c',Vector:'#b07ec9',MTE3:'#7ec99a'};
+  const LB={MTE2:'MTE2 搬入',Cube:'Cube',Vector:'Vector',MTE3:'MTE3 搬出'};
+  let html=lab;
+  ['MTE2','Cube','Vector','MTE3'].forEach(k=>{
+    html+='<div class="lane"><div class="lane-label">'+LB[k]+'</div><div class="lane-track">';
+    L[k].forEach(b=>{html+='<div class="blk" style="left:'+px(b.s)+'%;width:'+Math.max(0.6,px(b.w))+'%;background:'+colors[k]+'"></div>';
+      if(k==='Cube'&&b.ovh)html+='<div class="bubble" style="left:'+px(b.s+b.w)+'%;width:'+px(b.ovh)+'%"></div>';});
+    html+='</div></div>';
+  });
+  document.getElementById('swim').innerHTML=html;
+  document.getElementById('swim-note').innerHTML= !r.valid? '⛔ Token Unroll 长度超出片上 buffer,无法生成有效流水。'
+    : '单次迭代处理 <b>'+cfg.ttile+'</b> 个 token,流经 4 个 semantic 阶段。'+
+      (cfg.ttile>=128? ' Cube 阵列填满(填充效率 <b>'+fmt(r.fillEff*100,0)+'%</b>)'+(cfg.db?'、向量段与 GEMM 重叠':'')+',开销摊薄到最低。'
+        : ' t_tile 偏小 → GEMM 的 M 维填不满 Cube 阵列,出现 <b>'+fmt((1-r.fillEff)*100,0)+'% 填充浪费</b>(斜纹),且每 token 调度开销更高。');
+  foot(r.nIter,r.latencyUs,r.fillEff,cfg.db?r.overlap:null);
+}
+function drawSwimVec(op,r){
+  const cfg=op.cfg, show=Math.min(r.nIter,8), more=r.nIter-show;
+  const lanes=Math.max(1,r.tileElems), bytes=op.bytes;
+  const comp=Math.max(1,Math.ceil(r.tileElems/Math.floor(256/bytes)));
+  const load=op.nIn*r.tileElems*bytes/HW.bw, store=op.nOut*r.tileElems*bytes/HW.bw, ovhPer=(r.ovhRatio*r.cycles)/r.nIter;
+  const L={MTE2:[],Vector:[],MTE3:[]}; let span;
+  if(cfg.db){const step=Math.max(load,comp);
+    for(let i=0;i<show;i++){const b=i*step;L.MTE2.push({s:b,w:load});L.Vector.push({s:b+(i===0?load:0),w:comp});L.MTE3.push({s:b+Math.max(load,comp),w:store});}
+    span=show*step+Math.max(load,comp)+store;
+  } else {let cur=0;for(let i=0;i<show;i++){L.MTE2.push({s:cur,w:load});cur+=load;L.Vector.push({s:cur,w:comp,ovh:ovhPer});cur+=comp;L.MTE3.push({s:cur,w:store});cur+=store+ovhPer;}span=cur;}
+  paintLanes(['MTE2','Vector','MTE3'],{MTE2:'#4fa3d1',Vector:'#b07ec9',MTE3:'#7ec99a'},L,span,'Vector');
+  const note=document.getElementById('swim-note');
+  note.innerHTML= r.nIter===1? '✅ 单次迭代处理整块 tile,无循环开销,向量单元满载——<b>最紧密的流水</b>。'
+    : (!cfg.db? '⚠ '+r.nIter+' 次迭代且未开 Double Buffer:串行搬运+计算,迭代间有循环开销(斜纹)。':'⚠ '+r.nIter+' 次迭代:已 Double Buffer 重叠,但 tile 偏小使循环开销占比偏高。')+(more>0?'（仅展示前 '+show+' 次,余 '+more+'）':'');
+  foot(r.nIter,r.cycles,r.ovhRatio,cfg.db?r.overlap:null);
+}
+function drawSwimCube(op,r){
+  const cfg=op.cfg, show=4;
+  const comp=cfg.tileM*cfg.tileN*cfg.tileK/HW.cubeMac, load=(cfg.tileM*cfg.tileK+cfg.tileK*cfg.tileN)*op.bytes/HW.bw,
+        store=cfg.tileM*cfg.tileN*op.bytes/HW.bw, vec=comp*0.45, bub=cfg.align?0:comp*0.27;
+  const L={MTE2:[],Cube:[],Vector:[],MTE3:[]}; let span;
+  if(cfg.db){const step=Math.max(load,comp);
+    for(let i=0;i<show;i++){const b=i*step;L.MTE2.push({s:b,w:load});L.Cube.push({s:b+(i===0?load:0),w:comp,ovh:bub});L.Vector.push({s:b+load+comp*0.55,w:vec});L.MTE3.push({s:b+load+comp,w:store});}
+    span=show*step+load+comp+store;
+  } else {let cur=0;for(let i=0;i<show;i++){L.MTE2.push({s:cur,w:load});cur+=load;L.Cube.push({s:cur,w:comp,ovh:bub});cur+=comp+bub;L.Vector.push({s:cur,w:vec});cur+=vec;L.MTE3.push({s:cur,w:store});cur+=store;}span=cur;}
+  paintLanes(['MTE2','Cube','Vector','MTE3'],{MTE2:'#4fa3d1',Cube:'#dcaa3c',Vector:'#b07ec9',MTE3:'#7ec99a'},L,span,'Cube');
+  const note=document.getElementById('swim-note');
+  note.innerHTML= !r.valid? '⛔ 超出片上 Buffer,无法生成有效流水。'
+    : (cfg.db&&cfg.align? '✅ 搬运与计算高度重叠、气泡已消除——紧密泳道。'
+    : !cfg.db? '⚠ 未开 Double Buffer:搬运与计算串行,Cube 等待 MTE2 时空转。'
+    : '⚠ 未对齐:Cube 之后出现气泡/拖尾(斜纹区)。');
+  foot(r.tiles,r.cycles,r.bubble,cfg.db?r.overlap:null);
+}
+function paintLanes(keys,colors,L,span,ovhLane){
+  const px=v=>v/span*100; let html='';
+  const LB={MTE2:'MTE2 搬入',Cube:'Cube',Vector:'Vector',MTE3:'MTE3 搬出'};
+  keys.forEach(k=>{html+='<div class="lane"><div class="lane-label">'+LB[k]+'</div><div class="lane-track">';
+    L[k].forEach(b=>{html+='<div class="blk" style="left:'+px(b.s)+'%;width:'+Math.max(0.6,px(b.w))+'%;background:'+colors[k]+'"></div>';
+      if(k===ovhLane&&b.ovh)html+='<div class="bubble" style="left:'+px(b.s+b.w)+'%;width:'+px(b.ovh)+'%"></div>';});
+    html+='</div></div>';});
+  document.getElementById('swim').innerHTML=html;
+}
+function foot(a,b,c,d){document.getElementById('foot-a').textContent=fmt0(a);document.getElementById('foot-b').textContent=fmt0(b);
+  document.getElementById('foot-c').textContent=fmt(c*100,0)+'%';document.getElementById('foot-d').textContent=d!=null?fmt(d*100,0)+'%':'—';}
+
+/* ---- 扫描图 ---- */
+function drawSweep(op){
+  const cv=document.getElementById('sweep'),w=cv.clientWidth||400;cv.width=w;const h=150,ctx=cv.getContext('2d');ctx.clearRect(0,0,w,h);
+  const pad={l:50,r:14,t:14,b:26}; let xs,vals,curX,recX,unit;
+  if(op.tuneMode==='vec'){const ax=op.tunAxes[op.tunAxes.length-1];xs=op.optMap[ax];
+    vals=xs.map(v=>{const c={...op.cfg};c['t'+ax]=v;const r=op.model(c);return r.valid?r.cycles:null;});
+    curX=op.cfg['t'+ax];recX=op.recommend['t'+ax];unit='cycles';
+  } else if(op.tuneMode==='unroll'){xs=op.optTtile;
+    vals=xs.map(v=>{const r=op.model({...op.cfg,ttile:v});return r.valid?r.latencyUs:null;});
+    curX=op.cfg.ttile;recX=op.recommend.ttile;unit='µs';
+  } else {const O=[64,128,256,512];xs=O;vals=xs.map(v=>{const c={...op.cfg,tileN:v};const r=op.model(c);return r.valid?r.latencyUs:null;});
+    curX=op.cfg.tileN;recX=op.recommend.tileN;unit='µs';}
+  const valid=vals.filter(v=>v!=null),maxV=(valid.length?Math.max(...valid):1)*1.1;
+  const X=i=>pad.l+(i/(xs.length-1))*(w-pad.l-pad.r),Y=v=>pad.t+(1-v/maxV)*(h-pad.t-pad.b);
+  ctx.strokeStyle='#2c2c2c';ctx.fillStyle='#777';ctx.font="10px 'IBM Plex Mono'";
+  for(let g=0;g<=3;g++){const yy=pad.t+g/3*(h-pad.t-pad.b);ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(w-pad.r,yy);ctx.stroke();ctx.fillText(fmt0(maxV*(1-g/3)),3,yy+3);}
+  xs.forEach((v,i)=>ctx.fillText(v,X(i)-7,h-9));ctx.fillStyle='#666';ctx.fillText(unit,3,11);
+  ctx.strokeStyle='#dcaa3c';ctx.lineWidth=2;ctx.beginPath();let st=false;
+  vals.forEach((v,i)=>{if(v==null)return;const x=X(i),y=Y(v);st?ctx.lineTo(x,y):(ctx.moveTo(x,y),st=true);});ctx.stroke();
+  vals.forEach((v,i)=>{if(v==null){ctx.fillStyle='#f14c4c';ctx.fillText('×',X(i)-3,Y(maxV*0.5));return;}const x=X(i),y=Y(v);
+    let c='#dcaa3c',rd=3;if(xs[i]===curX){c='#fff';rd=5;}ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,rd,0,7);ctx.fill();
+    if(xs[i]===recX){ctx.strokeStyle='#7ec99a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,7,0,7);ctx.stroke();}});
+  ctx.font="10px 'IBM Plex Sans'";ctx.fillStyle='#fff';ctx.fillText('● 当前',w-pad.r-118,12);ctx.fillStyle='#7ec99a';ctx.fillText('◯ 推荐',w-pad.r-64,12);
+}
+
+/* ---- 顶部按钮 ---- */
+document.getElementById('applyBtn').onclick=()=>{const op=OPERATORS[activeId];applyRecTile(op);op.toggles.forEach(t=>op.cfg[t.key]=op.recommend[t.key]);op.cfg.unroll=op.recommend.unroll;
+  const c=document.getElementById('recCard');c.classList.add('glow');setTimeout(()=>c.classList.remove('glow'),1400);render();flashTile();};
+document.getElementById('resetBtn').onclick=()=>{const op=OPERATORS[activeId];op.cfg={...op.baseline};render();flashTile();};
+document.querySelectorAll('.ptab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.ptab').forEach(x=>x.classList.remove('active'));t.classList.add('active');
+  ['prof','term','prob'].forEach(p=>document.getElementById('panel-'+p).style.display='none');document.getElementById('panel-'+t.dataset.p).style.display='block';});
+document.getElementById('collapseBtn').onclick=()=>{const b=document.getElementById('bottom');b.classList.toggle('collapsed');document.getElementById('collapseBtn').textContent=b.classList.contains('collapsed')?'⌄ 展开':'⌃ 折叠';};
+window.addEventListener('resize',()=>drawSweep(OPERATORS[activeId]));
+
+/* ============================================================
+   上传 / 粘贴 / 分析
+   ============================================================ */
+const mask=document.getElementById('mask');
+function openModal(){mask.classList.add('show');}
+function closeModal(){mask.classList.remove('show');}
+document.getElementById('btnUpload').onclick=openModal;
+document.getElementById('uploadTile').onclick=openModal;
+document.getElementById('modalClose').onclick=closeModal;
+document.getElementById('modalCancel').onclick=closeModal;
+mask.onclick=(e)=>{if(e.target===mask)closeModal();};
+
+const drop=document.getElementById('drop'),fileInput=document.getElementById('fileInput');
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=()=>{const f=fileInput.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{document.getElementById('opCode').value=rd.result;if(!document.getElementById('opName').value)document.getElementById('opName').value=f.name.replace(/\.py$/,'');};rd.readAsText(f);};
+['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{document.getElementById('opCode').value=rd.result;if(!document.getElementById('opName').value)document.getElementById('opName').value=f.name.replace(/\.py$/,'');};rd.readAsText(f);});
+
+document.querySelectorAll('.samples button').forEach(b=>b.onclick=()=>{
+  const id=b.dataset.sample==='matmul'?'sample-matmul':'sample-softmax';
+  document.getElementById('opCode').value=getSrc(id);
+  document.getElementById('opName').value=b.dataset.sample==='matmul'?'matmul_quant':'softmax';
+});
+
+function toast(msg){const t=document.getElementById('toast');t.innerHTML=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),4200);}
+
+document.getElementById('analyzeBtn').onclick=()=>{
+  const code=document.getElementById('opCode').value.trim();
+  const nm=document.getElementById('opName').value.trim()||'custom_op';
+  if(!code){toast('<b>请先粘贴或选择算子代码</b>');return;}
+  const op=analyze(code,nm); op.file=nm+'.py'; op.builtin=false;
+  OPERATORS[op.id]=op; activeId=op.id;
+  closeModal();
+  document.getElementById('opCode').value=''; document.getElementById('opName').value='';
+  switchOp(op.id);
+  const recR=op.model(op.recommend),baseR=op.model(op.baseline);
+  toast('<b>✓ 分析完成:'+nm+'</b><br>识别为 '+KIND_LABEL[op.kind]+' · '+op.dtype+'。已生成关键参数推荐 tile '+tileTuple(op,op.recommend)+',预计 '+fmt(baseR.cycles/recR.cycles,1)+'× 提速。');
+};
+
+/* ---- 启动 ---- */
+registerBuiltin();
+switchOp('indexer');
+initApiHover();
+</script>
+</body>
+</html>
