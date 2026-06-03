@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphScope · 计算图渲染 / 对比</title>
+<style>
+  :root{
+    --bg:#eef0f4; --grid-dot:rgba(120,128,144,.34);
+    --ink:#1f2733; --ink2:#5b6472; --ink3:#98a2b3; --val:#101828;
+    --line:#e4e6ec; --line2:#eceef2;
+    --panel:#ffffff; --panel2:#fafbfc;
+    --card:#ffffff; --card-bd:#e4e6ec; --card-hd:#f6f7f9;
+    --op:#e9ebf9; --op-bd:#d3d8f0; --op-tab:#dde1f3; --op-div:#cfd5ee; --op-ink:#343b59; --op-id:#5a6178;
+    --port:#fff; --port-bd:#c2c7d2;
+    --edge:#c2c7d2; --edge-hi:#8b93a3;
+    --accent:#3b82f6; --accent-soft:#dbeafe;
+    --green:#22c55e; --green-soft:#dcfce7; --green-bd:#86efac;
+    --d-add:#16a34a; --d-add-bg:#e9f8ee;
+    --d-rem:#e11d48; --d-rem-bg:#fdeaee;
+    --d-mod:#d97706; --d-mod-bg:#fdf3e3;
+    --shadow:0 1px 2px rgba(16,24,40,.05), 0 4px 14px rgba(16,24,40,.07);
+    --shadow-lg:0 2px 6px rgba(16,24,40,.10), 0 12px 28px rgba(16,24,40,.12);
+    --mono:'SF Mono','JetBrains Mono','Roboto Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,'PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:var(--sans);color:var(--ink);background:var(--bg);overflow:hidden;-webkit-font-smoothing:antialiased}
+  #app{display:flex;flex-direction:column;height:100vh}
+
+  header{display:flex;align-items:center;gap:10px;padding:9px 14px;background:rgba(255,255,255,.86);
+    backdrop-filter:saturate(1.4) blur(8px);border-bottom:1px solid var(--line);z-index:30;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px;letter-spacing:.2px;margin-right:4px}
+  .brand .glyph{width:22px;height:22px;color:var(--accent)}
+  .brand small{font-weight:500;color:var(--ink3);font-size:11px;letter-spacing:.3px}
+  .sep{width:1px;height:22px;background:var(--line);margin:0 2px}
+  .seg{display:inline-flex;background:#f0f1f5;border:1px solid var(--line);border-radius:9px;padding:2px}
+  .seg button{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--ink2);
+    font:600 12.5px/1 var(--sans);padding:7px 12px;border-radius:7px;cursor:pointer}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.12)}
+  .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:#fff;color:var(--ink);
+    font:600 12.5px/1 var(--sans);padding:8px 12px;border-radius:9px;cursor:pointer;transition:.12s}
+  .btn:hover{border-color:#cdd2db;box-shadow:0 1px 3px rgba(16,24,40,.08)}
+  .btn:active{transform:translateY(1px)}
+  .btn svg{width:15px;height:15px;opacity:.8}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{background:#2f74ec}
+  .btn.ghost{background:transparent}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;box-shadow:none}
+  .search{position:relative;display:flex;align-items:center}
+  .search svg{position:absolute;left:9px;width:14px;height:14px;color:var(--ink3)}
+  .search input{border:1px solid var(--line);border-radius:9px;padding:8px 10px 8px 28px;font:500 12.5px var(--sans);
+    background:#fff;width:170px;color:var(--ink)}
+  .search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  select.ctl{border:1px solid var(--line);border-radius:9px;padding:8px 9px;font:600 12px var(--sans);background:#fff;color:var(--ink);cursor:pointer}
+  .spacer{flex:1}
+  .tag{font:600 11px/1 var(--mono);color:var(--ink2);background:#f0f1f5;border:1px solid var(--line);padding:5px 8px;border-radius:7px}
+
+  #stage{position:relative;flex:1;overflow:hidden}
+  #canvas{position:absolute;inset:0;width:100%;height:100%;cursor:grab;display:block;touch-action:none}
+  #canvas.grabbing{cursor:grabbing}
+  .node{cursor:pointer}
+  .node *{ -webkit-user-select:none; user-select:none }
+  text{ dominant-baseline:middle }
+
+  #rail{position:absolute;top:12px;right:12px;bottom:12px;width:312px;display:flex;flex-direction:column;gap:10px;
+    z-index:20;pointer-events:none}
+  .card-ui{background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;
+    box-shadow:var(--shadow);pointer-events:auto;overflow:hidden}
+  .card-ui .hd{display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid var(--line2);
+    font-weight:700;font-size:12.5px;letter-spacing:.2px}
+  .card-ui .hd .dot{width:8px;height:8px;border-radius:50%}
+  .card-ui .bd{padding:11px 13px;font-size:12.5px;color:var(--ink2);overflow:auto}
+  #railScroll{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;overflow:auto;padding-right:2px}
+
+  .kv{display:grid;grid-template-columns:84px 1fr;gap:4px 10px;align-items:baseline}
+  .kv .k{color:var(--ink3);font-size:11.5px}
+  .kv .v{color:var(--val);font-family:var(--mono);font-size:12px;word-break:break-word}
+  .pill-ty{display:inline-flex;align-items:center;gap:5px;font:600 10.5px/1 var(--mono);padding:4px 8px;border-radius:999px}
+  .empty{color:var(--ink3);font-size:12px;padding:6px 2px}
+
+  .barrow{display:flex;align-items:center;gap:9px;margin:7px 0}
+  .barrow .lbl{width:64px;font-size:11.5px;color:var(--ink2)}
+  .barrow .track{flex:1;height:8px;background:#f0f1f5;border-radius:5px;overflow:hidden}
+  .barrow .fill{height:100%;border-radius:5px}
+  .barrow .num{width:30px;text-align:right;font:600 12px var(--mono);color:var(--ink)}
+  .edgesum{margin-top:9px;padding-top:9px;border-top:1px solid var(--line2);font:600 11.5px var(--mono);color:var(--ink2)}
+
+  .chgitem{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:8px;cursor:pointer;font-size:12px}
+  .chgitem:hover{background:#f5f6f8}
+  .chgitem .sw{width:9px;height:9px;border-radius:3px;flex:none}
+  .chgitem .nm{font-family:var(--mono);font-size:11.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .chgitem .ty{font-size:10px;color:var(--ink3)}
+
+  .legend{display:flex;flex-direction:column;gap:7px}
+  .legrow{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--ink2);cursor:pointer;border-radius:7px;padding:3px 4px}
+  .legrow:hover{background:#f5f6f8}
+  .legrow.off{opacity:.4}
+  .legrow .sw{width:14px;height:14px;border-radius:5px;border:1px solid rgba(0,0,0,.06)}
+
+  #scrub{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;z-index:25;width:min(680px,calc(100% - 360px));
+    background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;
+    box-shadow:var(--shadow-lg);padding:11px 14px;display:none}
+  #scrub.show{display:block}
+  .scrub-top{display:flex;align-items:center;gap:12px}
+  .tbtn{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;cursor:pointer;color:var(--ink)}
+  .tbtn:hover{border-color:#cdd2db}
+  .tbtn svg{width:16px;height:16px}
+  .tbtn.play{background:var(--accent);border-color:var(--accent);color:#fff;width:38px;height:38px}
+  #range{flex:1;-webkit-appearance:none;height:6px;border-radius:4px;background:linear-gradient(90deg,var(--d-rem) 0,var(--accent) 50%,var(--d-add) 100%);outline:none}
+  #range::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:2px solid var(--accent);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+  #range::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:2px solid var(--accent);cursor:pointer}
+  .scrub-meta{display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-size:11.5px;color:var(--ink2)}
+  .phase{font-weight:600;font-family:var(--mono);font-size:11.5px}
+  .scrub-meta label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+
+  #zoombox{position:absolute;left:12px;bottom:14px;z-index:20;display:flex;flex-direction:column;gap:6px}
+  #zoombox .tbtn{width:32px;height:32px}
+  #drop{position:absolute;inset:0;z-index:40;display:none;align-items:center;justify-content:center;
+    background:rgba(238,240,244,.82);backdrop-filter:blur(3px)}
+  #drop.show{display:flex}
+  #drop .box{border:2px dashed var(--accent);border-radius:18px;padding:42px 60px;background:#fff;text-align:center;color:var(--ink);box-shadow:var(--shadow-lg)}
+  #drop .box b{font-size:16px}#drop .box span{display:block;color:var(--ink2);font-size:12.5px;margin-top:6px}
+  #toast{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:50;background:#1f2733;color:#fff;
+    font-size:12.5px;padding:9px 15px;border-radius:10px;opacity:0;transition:.25s;pointer-events:none;box-shadow:var(--shadow-lg)}
+  #toast.show{opacity:1}
+  .hint{position:absolute;left:12px;top:12px;z-index:15;font-size:11.5px;color:var(--ink3);background:rgba(255,255,255,.8);
+    border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-family:var(--mono);max-width:300px;line-height:1.5}
+  ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#d3d7de;border-radius:8px;border:2px solid transparent;background-clip:content-box}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="5" cy="6" r="2.2"/><circle cx="5" cy="18" r="2.2"/><rect x="14.5" y="3.4" width="6.6" height="5.4" rx="1.4"/><rect x="14.5" y="14.6" width="6.6" height="5.4" rx="1.4"/>
+        <path d="M7.2 6h3.3a2 2 0 0 1 2 2v0M7.2 18h3.3a2 2 0 0 0 2-2v0"/>
+      </svg>
+      GraphScope <small>计算图渲染 / 对比</small>
+    </div>
+    <div class="sep"></div>
+    <div class="seg" id="modeSeg">
+      <button data-mode="single" class="on">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="12" r="2.4"/><circle cx="6" cy="18" r="2.4"/><path d="M8 7l8 4M8 17l8-4"/></svg>
+        单图
+      </button>
+      <button data-mode="compare">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="7" height="14" rx="1.5"/><rect x="14" y="5" width="7" height="14" rx="1.5"/></svg>
+        对比
+      </button>
+    </div>
+    <button class="btn" id="loadA"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg><span id="loadAlbl">载入基准图</span></button>
+    <button class="btn" id="loadB" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg><span id="loadBlbl">载入对比图 (After)</span></button>
+    <select class="ctl" id="passSel" title="选择 PyPTO Pass" style="display:none;max-width:240px"></select>
+    <button class="btn primary" id="applyPass" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5z"/></svg>应用 Pass</button>
+    <input type="file" id="fileA" accept=".json,application/json" hidden>
+    <input type="file" id="fileB" accept=".json,application/json" hidden>
+    <div class="spacer"></div>
+    <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input id="search" placeholder="搜索算子 / 张量 / magic…"></div>
+    <select class="ctl" id="colorMode" title="着色方式">
+      <option value="struct">结构 (默认)</option>
+      <option value="cat">算子类别</option>
+      <option value="dtype">数据类型</option>
+      <option value="lat">延迟热度</option>
+    </select>
+    <button class="btn" id="fitBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>适应</button>
+  </header>
+
+  <div id="stage">
+    <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+          <circle cx="2" cy="2" r="1.1" fill="var(--grid-dot)"/>
+        </pattern>
+        <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="150%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3.2" flood-color="#101828" flood-opacity="0.10"/>
+        </filter>
+        <filter id="cardShadowLg" x="-30%" y="-30%" width="160%" height="170%">
+          <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#101828" flood-opacity="0.16"/>
+        </filter>
+      </defs>
+      <g id="viewport">
+        <rect id="grid" x="-4000" y="-4000" width="40000" height="40000" fill="url(#dots)"/>
+        <g id="edgeLayer"></g>
+        <g id="nodeLayer"></g>
+      </g>
+    </svg>
+
+    <div class="hint" id="hint">拖拽平移 · 滚轮缩放 · 点击节点查看详情 · F 适应视图</div>
+
+    <aside id="rail">
+      <div id="railScroll">
+        <div class="card-ui" id="inspCard">
+          <div class="hd"><span class="dot" style="background:var(--accent)"></span><span id="inspTitle">节点检查器</span></div>
+          <div class="bd" id="inspBody"><div class="empty">点击任意算子或张量节点查看详情。</div></div>
+        </div>
+        <div class="card-ui" id="passCard" style="display:none">
+          <div class="hd"><span class="dot" style="background:var(--accent)"></span><span id="passHd">PyPTO Pass</span><span id="passBadge" class="tag" style="margin-left:auto"></span></div>
+          <div class="bd" id="passBody"></div>
+        </div>
+        <div class="card-ui" id="diffCard" style="display:none">
+          <div class="hd"><span class="dot" style="background:var(--d-mod)"></span>差异概览</div>
+          <div class="bd" id="diffStats"></div>
+        </div>
+        <div class="card-ui" id="diffListCard" style="display:none">
+          <div class="hd"><span class="dot" style="background:var(--d-add)"></span>变化清单 <span id="chgCount" class="tag" style="margin-left:auto"></span></div>
+          <div class="bd" id="diffList" style="max-height:230px"></div>
+        </div>
+        <div class="card-ui" id="legendCard">
+          <div class="hd"><span class="dot" style="background:var(--ink3)"></span><span id="legTitle">图例</span></div>
+          <div class="bd"><div class="legend" id="legend"></div></div>
+        </div>
+        <div class="card-ui">
+          <div class="hd"><span class="dot" style="background:var(--green)"></span>计算图信息</div>
+          <div class="bd" id="overview"></div>
+        </div>
+      </div>
+    </aside>
+
+    <div id="zoombox">
+      <button class="tbtn" id="zoomIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="tbtn" id="zoomOut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></button>
+      <button class="tbtn" id="zoomReset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
+
+    <div id="scrub">
+      <div class="scrub-top">
+        <button class="tbtn" id="toStart" title="到 Before"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 20L9 12l10-8zM5 4v16"/></svg></button>
+        <button class="tbtn play" id="playBtn" title="播放/暂停"><svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+        <button class="tbtn" id="toEnd" title="到 After"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4l10 8-10 8zM19 4v16"/></svg></button>
+        <input type="range" id="range" min="0" max="1000" value="0">
+      </div>
+      <div class="scrub-meta">
+        <span class="phase" id="phase">Before</span>
+        <label><input type="checkbox" id="loopChk"> 循环播放</label>
+      </div>
+    </div>
+
+    <div id="drop"><div class="box"><b>松开以载入计算图 JSON</b><span id="dropSub">将解析为基准图</span></div></div>
+  </div>
+  <div id="toast"></div>
+</div>
+
+<script id="sample-data" type="application/json">{"entryhash":"7954759110225103634","functions":[{"_cube_nbuffer_num":1,"_funcid":12,"_l1_reuse_num":0,"_magicseed":52,"_nbuffer_merge_mode":1,"_ooo_preschedule_method":"PriorDFS","_opseed":10040,"_rawid":449,"_sg_copyin_threshold":1048576,"_sg_cube_parallel_num":24,"_sg_cycle_lowerbound":512,"_sg_cycle_upperbound":10000,"_sg_parallel_num":20,"_sg_skip_partition":false,"_sg_vec_parallel_num":48,"_total_subgraph_count":0,"func_magicname":"TENSOR_LOOP_L2_bn_Unroll1_PATH0_8","funcmagic":8,"functype":4,"global_tensors":[],"graphtype":0,"hash":"7954759110225103634","incasts":[[27,[4]],[29,[1]],[31,[3]],[33,[0]],[35,[10]],[37,[2]],[39,[8]],[41,[9]]],"kind":3,"operations":[{"attr":[21,2,0,0,0,2,[0,1024],[0,64]],"file":"/data/z30040105/pypto-dev/framework/src/interface/function/function.cpp","ioperands":[27],"kind":2,"latency":521,"line":1741,"ooperands":[28],"op_attr":{"IS_GLOBAL_INPUT":true},"opcode":"VIEW","opmagic":10029,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,0,2,[0,1024],[0,512]],"file":"/data/z30040105/pypto-dev/framework/src/interface/function/function.cpp","ioperands":[29],"kind":2,"latency":4105,"line":1741,"ooperands":[30],"op_attr":{"IS_GLOBAL_INPUT":true},"opcode":"VIEW","opmagic":10030,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,2,[2,5,2,16,4,1,"RUNTIME_GetInputDataInt32Dim2",1,"ARG_blockTable",1,"bIdx",1,"bn",0,128],[0,0],2,[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128],[0,64]],"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[28],"kind":2,"latency":73,"line":81,"ooperands":[4],"opcode":"VIEW","opmagic":10005,"semantic_label":[""],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,2,[2,5,2,16,4,1,"RUNTIME_GetInputDataInt32Dim2",1,"ARG_blockTable",1,"bIdx",1,"bn",0,128],[0,0],2,[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128],[0,512]],"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[30],"kind":2,"latency":521,"line":79,"ooperands":[3],"opcode":"VIEW","opmagic":10004,"semantic_label":[""],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,0,2,[0,128],[0,64]],"file":"/data/z30040105/pypto-dev/framework/src/interface/function/function.cpp","ioperands":[31],"kind":2,"latency":73,"line":1741,"ooperands":[32],"op_attr":{"IS_GLOBAL_INPUT":true},"opcode":"VIEW","opmagic":10031,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,0,2,[0,128],[0,512]],"file":"/data/z30040105/pypto-dev/framework/src/interface/function/function.cpp","ioperands":[33],"kind":2,"latency":521,"line":1741,"ooperands":[34],"op_attr":{"IS_GLOBAL_INPUT":true},"opcode":"VIEW","opmagic":10032,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,512,2,[0,0],[0,512],0],"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[4],"kind":2,"latency":73,"line":86,"ooperands":[5],"op_attr":{"dassemble":true},"opcode":"ASSEMBLE","opmagic":10007,"semantic_label":[""],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,2,[0,0],[0,0],0],"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[3],"kind":2,"latency":521,"line":85,"ooperands":[5],"op_attr":{"dassemble":true},"opcode":"ASSEMBLE","opmagic":10006,"semantic_label":[""],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,2,[2,3,2,5,1,"bIdx",0,32,2,5,1,"nIdx",0,32],[0,0],2,[2,16,4,1,"RUNTIME_GetViewValidShapeDim",0,128,2,3,2,5,1,"bIdx",0,32,2,5,1,"nIdx",0,32,0,32],[0,64]],"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[32],"kind":2,"latency":25,"line":71,"ooperands":[1],"opcode":"VIEW","opmagic":10001,"semantic_label":[""],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,2,[2,3,2,5,1,"bIdx",0,32,2,5,1,"nIdx",0,32],[0,0],2,[2,16,4,1,"RUNTIME_GetViewValidShapeDim",0,128,2,3,2,5,1,"bIdx",0,32,2,5,1,"nIdx",0,32,0,32],[0,512]],"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[34],"kind":2,"latency":137,"line":70,"ooperands":[0],"opcode":"VIEW","opmagic":10000,"semantic_label":[""],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,2,[0,0],[0,0],2,[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128],[0,576]],"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[5],"kind":2,"latency":585,"line":87,"ooperands":[6],"opcode":"VIEW","opmagic":10008,"semantic_label":[""],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,512,2,[0,0],[0,512],0],"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[1],"kind":2,"latency":25,"line":74,"ooperands":[2],"op_attr":{"dassemble":true},"opcode":"ASSEMBLE","opmagic":10003,"semantic_label":[""],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,2,[0,0],[0,0],0],"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[0],"kind":2,"latency":137,"line":73,"ooperands":[2],"op_attr":{"dassemble":true},"opcode":"ASSEMBLE","opmagic":10002,"semantic_label":[""],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[2,6],"kind":2,"latency":585,"line":95,"ooperands":[8],"op_attr":{"op_attr_act_k":0,"op_attr_act_m":32,"op_attr_act_n":128},"opcode":"A_MUL_Bt","opmagic":10010,"semantic_label":["MatMul"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[8],"kind":2,"latency":73,"line":100,"ooperands":[9],"op_attr":{"SCALAR":{"data_type":7,"value":0.0416666679084301}},"opcode":"MULS","opmagic":10011,"semantic_label":["SoftMax"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[9],"kind":2,"latency":73,"line":103,"ooperands":[10],"op_attr":{"op_attr_AXIS":1},"opcode":"ROWMAX_SINGLE","opmagic":10012,"semantic_label":["SoftMax"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,0,2,[0,32],[0,1]],"file":"/data/z30040105/pypto-dev/framework/src/interface/function/function.cpp","ioperands":[35],"kind":2,"latency":10,"line":1741,"ooperands":[36],"op_attr":{"IS_GLOBAL_INPUT":true},"opcode":"VIEW","opmagic":10033,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[9,10],"kind":2,"latency":73,"line":105,"ooperands":[11],"opcode":"SUB","opmagic":10013,"semantic_label":["SoftMax"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[36,10],"kind":2,"latency":10,"line":134,"ooperands":[45],"opcode":"MAXIMUM","opmagic":10017,"semantic_label":["Softmax-acc"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,0,2,[0,1024],[0,512]],"file":"/data/z30040105/pypto-dev/framework/src/interface/function/function.cpp","ioperands":[37],"kind":2,"latency":4105,"line":1741,"ooperands":[38],"op_attr":{"IS_GLOBAL_INPUT":true},"opcode":"VIEW","opmagic":10034,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[11],"kind":2,"latency":73,"line":106,"ooperands":[12],"opcode":"EXP","opmagic":10014,"semantic_label":["SoftMax"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[10,45],"kind":2,"latency":10,"line":137,"ooperands":[18],"opcode":"SUB","opmagic":10020,"semantic_label":["Softmax-acc"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[36,45],"kind":2,"latency":10,"line":135,"ooperands":[16],"opcode":"SUB","opmagic":10018,"semantic_label":["Softmax-acc"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,2,[2,5,2,16,4,1,"RUNTIME_GetInputDataInt32Dim2",1,"ARG_blockTable",1,"bIdx",1,"bn",0,128],[0,0],2,[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128],[0,512]],"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[38],"kind":2,"latency":521,"line":89,"ooperands":[7],"opcode":"VIEW","opmagic":10009,"semantic_label":[""],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[12],"kind":2,"latency":73,"line":107,"ooperands":[13],"op_attr":{"op_attr_mode":0},"opcode":"CAST","opmagic":10015,"semantic_label":["SoftMax"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[12],"kind":2,"latency":73,"line":108,"ooperands":[14],"op_attr":{"op_attr_AXIS":1},"opcode":"ROWSUM_SINGLE","opmagic":10016,"semantic_label":["SoftMax"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[18],"kind":2,"latency":10,"line":138,"ooperands":[19],"opcode":"EXP","opmagic":10021,"semantic_label":["Softmax-acc"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,0,2,[0,32],[0,1]],"file":"/data/z30040105/pypto-dev/framework/src/interface/function/function.cpp","ioperands":[41],"kind":2,"latency":10,"line":1741,"ooperands":[42],"op_attr":{"IS_GLOBAL_INPUT":true},"opcode":"VIEW","opmagic":10036,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[16],"kind":2,"latency":10,"line":136,"ooperands":[17],"opcode":"EXP","opmagic":10019,"semantic_label":["Softmax-acc"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[13,7],"kind":2,"latency":521,"line":150,"ooperands":[24],"op_attr":{"op_attr_act_k":128,"op_attr_act_m":32,"op_attr_act_n":512},"opcode":"A_MUL_B","opmagic":10026,"semantic_label":["bn-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,0,2,[0,32],[0,512]],"file":"/data/z30040105/pypto-dev/framework/src/interface/function/function.cpp","ioperands":[39],"kind":2,"latency":265,"line":1741,"ooperands":[40],"op_attr":{"IS_GLOBAL_INPUT":true},"opcode":"VIEW","opmagic":10035,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[19,14],"kind":2,"latency":10,"line":139,"ooperands":[20],"opcode":"MUL","opmagic":10022,"semantic_label":["Softmax-acc"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[17,42],"kind":2,"latency":10,"line":140,"ooperands":[21],"opcode":"MUL","opmagic":10023,"semantic_label":["Softmax-acc"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[24,19],"kind":2,"latency":265,"line":153,"ooperands":[25],"opcode":"MUL","opmagic":10027,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[40,17],"kind":2,"latency":265,"line":143,"ooperands":[23],"opcode":"MUL","opmagic":10025,"semantic_label":["Softmax-acc"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[21,20],"kind":2,"latency":10,"line":141,"ooperands":[51],"opcode":"ADD","opmagic":10024,"semantic_label":["Softmax-acc"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"file":"/data/z30040105/pypto-dev/framework/src/operator/models/deepseek/page_attention.cpp","ioperands":[23,25],"kind":2,"latency":265,"line":154,"ooperands":[48],"opcode":"ADD","opmagic":10028,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,0,0],"file":"/data/z30040105/pypto-dev/framework/src/interface/function/function.cpp","ioperands":[51],"kind":2,"latency":10,"line":700,"ooperands":[49],"opcode":"ASSEMBLE","opmagic":10039,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,0,0],"file":"/data/z30040105/pypto-dev/framework/src/interface/function/function.cpp","ioperands":[48],"kind":2,"latency":265,"line":700,"ooperands":[46],"opcode":"ASSEMBLE","opmagic":10038,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},{"attr":[21,2,0,0,0,0],"file":"/data/z30040105/pypto-dev/framework/src/interface/function/function.cpp","ioperands":[45],"kind":2,"latency":10,"line":700,"ooperands":[43],"opcode":"ASSEMBLE","opmagic":10037,"semantic_label":["bn-after-matmul2"],"static":{"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}},"subgraphid":-1,"sync_queue":{"core_type":0,"event_id":0,"gm_buf_id":0,"offset":[],"pipe_id":0,"tri_core_type":0,"trig_pipe":0}}],"outcasts":[[43,[10]],[46,[8]],[49,[9]]],"parent_funcmagic":7,"rawname":"TENSOR_LOOP_L2_bn_Unroll1_PATH0","rawtensors":[{"datatype":8,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":11,"rawshape":[32,512],"symbol":"View_qNope","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":12,"rawshape":[32,64],"symbol":"View_qRope","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":13,"rawshape":[32,576],"symbol":"qi","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":1,"kind":0,"ori_rawshape":[],"rawmagic":14,"rawshape":[128,512],"symbol":"View_kNopeCache","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":1,"kind":0,"ori_rawshape":[],"rawmagic":15,"rawshape":[128,64],"symbol":"View_kRope","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":1,"kind":0,"ori_rawshape":[],"rawmagic":16,"rawshape":[128,576],"symbol":"kj","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":1,"kind":0,"ori_rawshape":[],"rawmagic":17,"rawshape":[128,576],"symbol":"kj","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":1,"kind":0,"ori_rawshape":[],"rawmagic":18,"rawshape":[128,512],"symbol":"View_vNopeCache","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":19,"rawshape":[32,128],"symbol":"sij","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":20,"rawshape":[32,128],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":21,"rawshape":[32,1],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":22,"rawshape":[32,128],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":23,"rawshape":[32,128],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":24,"rawshape":[32,128],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":25,"rawshape":[32,1],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":27,"rawshape":[32,1],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":28,"rawshape":[32,1],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":29,"rawshape":[32,1],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":30,"rawshape":[32,1],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":31,"rawshape":[32,1],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":32,"rawshape":[32,1],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":34,"rawshape":[32,512],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":35,"rawshape":[32,512],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":36,"rawshape":[32,512],"tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":1,"kind":0,"ori_rawshape":[],"rawmagic":38,"rawshape":[1024,64],"symbol":"kRope","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":1,"kind":0,"ori_rawshape":[],"rawmagic":39,"rawshape":[1024,64],"symbol":"INCAST_LOCAL_BUF0","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":1,"kind":0,"ori_rawshape":[],"rawmagic":40,"rawshape":[1024,512],"symbol":"kNopeCache","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":1,"kind":0,"ori_rawshape":[],"rawmagic":41,"rawshape":[1024,512],"symbol":"INCAST_LOCAL_BUF1","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":42,"rawshape":[128,64],"symbol":"qRope","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":43,"rawshape":[128,64],"symbol":"INCAST_LOCAL_BUF2","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":44,"rawshape":[128,512],"symbol":"qNope","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":45,"rawshape":[128,512],"symbol":"INCAST_LOCAL_BUF3","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":46,"rawshape":[32,1],"symbol":"miUpdate","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":47,"rawshape":[32,1],"symbol":"INCAST_LOCAL_BUF4","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":1,"kind":0,"ori_rawshape":[],"rawmagic":48,"rawshape":[1024,512],"symbol":"vNopeCache","tensorIndex":-1,"tensorSubscript":-1},{"datatype":8,"format":1,"kind":0,"ori_rawshape":[],"rawmagic":49,"rawshape":[1024,512],"symbol":"INCAST_LOCAL_BUF5","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":50,"rawshape":[32,512],"symbol":"oiUpdate","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":51,"rawshape":[32,512],"symbol":"INCAST_LOCAL_BUF6","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":52,"rawshape":[32,1],"symbol":"liUpdate","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":53,"rawshape":[32,1],"symbol":"INCAST_LOCAL_BUF7","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":54,"rawshape":[32,1],"symbol":"miUpdate","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":55,"rawshape":[32,1],"symbol":"OUTCAST_LOCAL_BUF0","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":56,"rawshape":[32,512],"symbol":"oiUpdate","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":57,"rawshape":[32,512],"symbol":"OUTCAST_LOCAL_BUF1","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":58,"rawshape":[32,1],"symbol":"liUpdate","tensorIndex":-1,"tensorSubscript":-1},{"datatype":7,"format":0,"kind":0,"ori_rawshape":[],"rawmagic":59,"rawshape":[32,1],"symbol":"OUTCAST_LOCAL_BUF2","tensorIndex":-1,"tensorSubscript":-1}],"semantic_label":[],"static":{"global_tensors":[]},"tensors":[{"dynvalidshape":[[2,16,4,1,"RUNTIME_GetViewValidShapeDim",0,128,2,3,2,5,1,"bIdx",0,32,2,5,1,"nIdx",0,32,0,32],[0,512]],"kind":1,"life_range":[-1,-1],"magic":0,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":11,"semantic_label":[],"shape":[32,512],"subgraph_boundary":false,"validshape":[32,512]},{"dynvalidshape":[[2,16,4,1,"RUNTIME_GetViewValidShapeDim",0,128,2,3,2,5,1,"bIdx",0,32,2,5,1,"nIdx",0,32,0,32],[0,64]],"kind":1,"life_range":[-1,-1],"magic":1,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":12,"semantic_label":[],"shape":[32,64],"subgraph_boundary":false,"validshape":[32,64]},{"dynvalidshape":[[0,32],[0,576]],"kind":1,"life_range":[-1,-1],"magic":2,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":13,"semantic_label":[],"shape":[32,576],"subgraph_boundary":false,"validshape":[32,576]},{"dynvalidshape":[[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128],[0,512]],"kind":1,"life_range":[-1,-1],"magic":3,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":14,"semantic_label":[],"shape":[128,512],"subgraph_boundary":false,"validshape":[128,512]},{"dynvalidshape":[[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128],[0,64]],"kind":1,"life_range":[-1,-1],"magic":4,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":15,"semantic_label":[],"shape":[128,64],"subgraph_boundary":false,"validshape":[128,64]},{"dynvalidshape":[[0,128],[0,576]],"kind":1,"life_range":[-1,-1],"magic":5,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":16,"semantic_label":[],"shape":[128,576],"subgraph_boundary":false,"validshape":[128,576]},{"dynvalidshape":[[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128],[0,576]],"kind":1,"life_range":[-1,-1],"magic":6,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":17,"semantic_label":[],"shape":[128,576],"subgraph_boundary":false,"validshape":[128,576]},{"dynvalidshape":[[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128],[0,512]],"kind":1,"life_range":[-1,-1],"magic":7,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":18,"semantic_label":[],"shape":[128,512],"subgraph_boundary":false,"validshape":[128,512]},{"dynvalidshape":[[0,32],[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128]],"kind":1,"life_range":[-1,-1],"magic":8,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":19,"semantic_label":[],"shape":[32,128],"subgraph_boundary":false,"validshape":[32,128]},{"dynvalidshape":[[0,32],[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128]],"kind":1,"life_range":[-1,-1],"magic":9,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":20,"semantic_label":[],"shape":[32,128],"subgraph_boundary":false,"validshape":[32,128]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":10,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":21,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128]],"kind":1,"life_range":[-1,-1],"magic":11,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":22,"semantic_label":[],"shape":[32,128],"subgraph_boundary":false,"validshape":[32,128]},{"dynvalidshape":[[0,32],[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128]],"kind":1,"life_range":[-1,-1],"magic":12,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":23,"semantic_label":[],"shape":[32,128],"subgraph_boundary":false,"validshape":[32,128]},{"dynvalidshape":[[0,32],[2,14,2,4,2,16,3,1,"RUNTIME_GetInputDataInt32Dim1",1,"ARG_actSeqs",1,"bIdx",2,5,1,"bn",0,128,0,128]],"kind":1,"life_range":[-1,-1],"magic":13,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":24,"semantic_label":[],"shape":[32,128],"subgraph_boundary":false,"validshape":[32,128]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":14,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":25,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":16,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":27,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":17,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":28,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":18,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":29,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":19,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":30,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":20,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":31,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":21,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":32,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,512]],"kind":1,"life_range":[-1,-1],"magic":23,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":34,"semantic_label":[],"shape":[32,512],"subgraph_boundary":false,"validshape":[32,512]},{"dynvalidshape":[[0,32],[0,512]],"kind":1,"life_range":[-1,-1],"magic":24,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":35,"semantic_label":[],"shape":[32,512],"subgraph_boundary":false,"validshape":[32,512]},{"dynvalidshape":[[0,32],[0,512]],"kind":1,"life_range":[-1,-1],"magic":25,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":36,"semantic_label":[],"shape":[32,512],"subgraph_boundary":false,"validshape":[32,512]},{"dynvalidshape":[[0,1024],[0,64]],"kind":1,"life_range":[-1,-1],"magic":27,"mem_id":-1,"mem_range":[0,0],"nodetype":1,"offset":[0,0],"rawtensor":38,"semantic_label":[],"shape":[1024,64],"subgraph_boundary":false,"validshape":[1024,64]},{"dynvalidshape":[[0,1024],[0,64]],"kind":1,"life_range":[-1,-1],"magic":28,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":39,"semantic_label":[],"shape":[1024,64],"subgraph_boundary":false,"validshape":[1024,64]},{"dynvalidshape":[[0,1024],[0,512]],"kind":1,"life_range":[-1,-1],"magic":29,"mem_id":-1,"mem_range":[0,0],"nodetype":1,"offset":[0,0],"rawtensor":40,"semantic_label":[],"shape":[1024,512],"subgraph_boundary":false,"validshape":[1024,512]},{"dynvalidshape":[[0,1024],[0,512]],"kind":1,"life_range":[-1,-1],"magic":30,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":41,"semantic_label":[],"shape":[1024,512],"subgraph_boundary":false,"validshape":[1024,512]},{"dynvalidshape":[[0,128],[0,64]],"kind":1,"life_range":[-1,-1],"magic":31,"mem_id":-1,"mem_range":[0,0],"nodetype":1,"offset":[0,0],"rawtensor":42,"semantic_label":[],"shape":[128,64],"subgraph_boundary":false,"validshape":[128,64]},{"dynvalidshape":[[0,128],[0,64]],"kind":1,"life_range":[-1,-1],"magic":32,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":43,"semantic_label":[],"shape":[128,64],"subgraph_boundary":false,"validshape":[128,64]},{"dynvalidshape":[[0,128],[0,512]],"kind":1,"life_range":[-1,-1],"magic":33,"mem_id":-1,"mem_range":[0,0],"nodetype":1,"offset":[0,0],"rawtensor":44,"semantic_label":[],"shape":[128,512],"subgraph_boundary":false,"validshape":[128,512]},{"dynvalidshape":[[0,128],[0,512]],"kind":1,"life_range":[-1,-1],"magic":34,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":45,"semantic_label":[],"shape":[128,512],"subgraph_boundary":false,"validshape":[128,512]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":35,"mem_id":-1,"mem_range":[0,0],"nodetype":1,"offset":[0,0],"rawtensor":46,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":36,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":47,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,1024],[0,512]],"kind":1,"life_range":[-1,-1],"magic":37,"mem_id":-1,"mem_range":[0,0],"nodetype":1,"offset":[0,0],"rawtensor":48,"semantic_label":[],"shape":[1024,512],"subgraph_boundary":false,"validshape":[1024,512]},{"dynvalidshape":[[0,1024],[0,512]],"kind":1,"life_range":[-1,-1],"magic":38,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":49,"semantic_label":[],"shape":[1024,512],"subgraph_boundary":false,"validshape":[1024,512]},{"dynvalidshape":[[0,32],[0,512]],"kind":1,"life_range":[-1,-1],"magic":39,"mem_id":-1,"mem_range":[0,0],"nodetype":1,"offset":[0,0],"rawtensor":50,"semantic_label":[],"shape":[32,512],"subgraph_boundary":false,"validshape":[32,512]},{"dynvalidshape":[[0,32],[0,512]],"kind":1,"life_range":[-1,-1],"magic":40,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":51,"semantic_label":[],"shape":[32,512],"subgraph_boundary":false,"validshape":[32,512]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":41,"mem_id":-1,"mem_range":[0,0],"nodetype":1,"offset":[0,0],"rawtensor":52,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":42,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":53,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":43,"mem_id":-1,"mem_range":[0,0],"nodetype":2,"offset":[0,0],"rawtensor":54,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":45,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":55,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,512]],"kind":1,"life_range":[-1,-1],"magic":46,"mem_id":-1,"mem_range":[0,0],"nodetype":2,"offset":[0,0],"rawtensor":56,"semantic_label":[],"shape":[32,512],"subgraph_boundary":false,"validshape":[32,512]},{"dynvalidshape":[[0,32],[0,512]],"kind":1,"life_range":[-1,-1],"magic":48,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":57,"semantic_label":[],"shape":[32,512],"subgraph_boundary":false,"validshape":[32,512]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":49,"mem_id":-1,"mem_range":[0,0],"nodetype":2,"offset":[0,0],"rawtensor":58,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]},{"dynvalidshape":[[0,32],[0,1]],"kind":1,"life_range":[-1,-1],"magic":51,"mem_id":-1,"mem_range":[0,0],"nodetype":0,"offset":[0,0],"rawtensor":59,"semantic_label":[],"shape":[32,1],"subgraph_boundary":false,"validshape":[32,1]}]}],"version":"2.0"}</script>
+
+<script>
+/* GraphScope engine v2 — BIPARTITE compiler-graph model (ops + tensors as nodes).
+   Zero dependencies. Runs in Node (module.exports) and browser (window.GraphEngine). */
+(function (root) {
+  'use strict';
+
+  var DTYPE_NAME = {
+    0:'undef',1:'bool',2:'i8',3:'u8',4:'i16',5:'u16',6:'i32',
+    7:'fp32',8:'fp16',9:'bf16',10:'i64',11:'u32',12:'u64',13:'fp64'
+  };
+
+  // op -> coarse category (for optional coloring / legend)
+  var CATEGORY = {
+    VIEW:'memory', ASSEMBLE:'memory',
+    A_MUL_BT:'matmul', A_MUL_B:'matmul',
+    MULS:'elementwise', MUL:'elementwise', ADD:'elementwise', SUB:'elementwise', MAXIMUM:'elementwise',
+    EXP:'unary', CAST:'unary',
+    ROWMAX_SINGLE:'reduce', ROWSUM_SINGLE:'reduce'
+  };
+  function categoryOf(opcode){ if(!opcode) return 'other'; return CATEGORY[String(opcode).toUpperCase()] || 'other'; }
+
+  function fmtList(a){ return Array.isArray(a) ? '['+a.join(',')+']' : (a==null?'—':String(a)); }
+  var NODETYPE_NAME = {0:'internal',1:'input',2:'output'};
+
+  /* ---- default node sizing (renderer may override by pre-setting n.w / n.h) ---- */
+  function measureNode(n){
+    if (n.kind === 'op') {
+      var t = n.title || '';
+      return { w: Math.max(132, Math.round(t.length * 8.3) + 60), h: 40 };
+    }
+    var tt = n.title || '';
+    var rows = (n.rows || []).length;
+    // width must fit the bold title PLUS the corner magic badge (badge ~ magicLen*7+10, +clearance)
+    var badge = String(n.magic == null ? '' : n.magic).length * 7 + 10;
+    var titleW = Math.round(tt.length * 8.4) + 28;        // bold 13px title + left pad
+    return { w: Math.max(208, titleW + badge + 26), h: 34 + rows * 24 + 14 };
+  }
+
+  /* ---- parse: build bipartite dataflow graph ---- */
+  function parseGraph(json, label){
+    var fn = json.functions[0];
+    var ops = fn.operations || [], tens = fn.tensors || [], raws = fn.rawtensors || [];
+    var rawByMagic = {}; raws.forEach(function(r){ rawByMagic[r.rawmagic] = r; });
+
+    var nodes = [], byId = {}, tensorByMagic = {};
+
+    tens.forEach(function(t){
+      var r = rawByMagic[t.rawtensor] || {};
+      var sym = r.symbol || 'Tensor';
+      var id = 'T' + t.magic;
+      var n = {
+        id: id, kind: 'tensor',
+        magic: t.magic, rawmagic: t.rawtensor,
+        symbol: r.symbol || '',
+        title: sym + ' (' + t.rawtensor + ')',
+        nodetype: t.nodetype,                  // 0 internal, 1 incast(input), 2 outcast(output)
+        boundary: (t.nodetype === 1 || t.nodetype === 2),
+        datatype: r.datatype,
+        shape: t.shape,
+        rows: [
+          ['shape', fmtList(t.shape)],
+          ['rawshape', fmtList(r.rawshape)],
+          ['offset', fmtList(t.offset)],
+          ['datatype', DTYPE_NAME[r.datatype] || ('dt' + r.datatype)]
+        ]
+      };
+      nodes.push(n); byId[id] = n; tensorByMagic[t.magic] = n;
+    });
+
+    ops.forEach(function(o){
+      var id = 'O' + o.opmagic;
+      var n = {
+        id: id, kind: 'op',
+        opmagic: o.opmagic, opcode: o.opcode,
+        title: 'TILE_' + o.opcode,
+        category: categoryOf(o.opcode),
+        latency: o.latency,
+        semantic: (o.semantic_label || []).join(', '),
+        opAttr: o.op_attr || {},
+        ioperands: o.ioperands || [],
+        ooperands: o.ooperands || []
+      };
+      nodes.push(n); byId[id] = n;
+    });
+
+    var edges = [], seen = {};
+    ops.forEach(function(o){
+      var oid = 'O' + o.opmagic;
+      (o.ioperands || []).forEach(function(m){
+        var t = tensorByMagic[m]; if (!t) return;
+        var k = t.id + '->' + oid; if (seen[k]) return; seen[k] = 1;
+        edges.push({ id: k, from: t.id, to: oid });
+      });
+      (o.ooperands || []).forEach(function(m){
+        var t = tensorByMagic[m]; if (!t) return;
+        var k = oid + '->' + t.id; if (seen[k]) return; seen[k] = 1;
+        edges.push({ id: k, from: oid, to: t.id });
+      });
+    });
+
+    return {
+      label: label || '', nodes: nodes, edges: edges, byId: byId, rawJSON: json,
+      counts: { ops: ops.length, tensors: tens.length, edges: edges.length,
+                inputs: tens.filter(function(t){return t.nodetype===1;}).length,
+                outputs: tens.filter(function(t){return t.nodetype===2;}).length }
+    };
+  }
+
+  /* ---- isotonic (PAVA) placement with variable node sizes ----
+     Given ordered items [{id,target,size}], return center positions minimizing
+     sum (pos-target)^2 subject to pos_{i+1}-pos_i >= (size_i+size_{i+1})/2 + gap. */
+  function place1D(items, gap){
+    var n = items.length, res = {}; if (!n) return res;
+    var off = new Array(n); off[0] = 0;
+    for (var i=1;i<n;i++) off[i] = off[i-1] + (items[i-1].size/2 + gap + items[i].size/2);
+    var t = new Array(n);
+    for (i=0;i<n;i++) t[i] = items[i].target - off[i];
+    var val=[], wt=[], cnt=[];
+    for (i=0;i<n;i++){
+      var v=t[i], w=1, c=1;
+      while (val.length && val[val.length-1] > v){
+        var pv=val.pop(), pw=wt.pop(), pc=cnt.pop();
+        v = (v*w + pv*pw)/(w+pw); w += pw; c += pc;
+      }
+      val.push(v); wt.push(w); cnt.push(c);
+    }
+    var flat=[], k;
+    for (i=0;i<val.length;i++) for (k=0;k<cnt[i];k++) flat.push(val[i]);
+    for (i=0;i<n;i++) res[items[i].id] = flat[i] + off[i];
+    return res;
+  }
+
+  /* ---- layout: layered LEFT-TO-RIGHT DAG ---- */
+  function layoutGraph(graph, opts){
+    opts = opts || {};
+    var hGap = opts.hGap != null ? opts.hGap : 96;  // between ranks (x)
+    var vGap = opts.vGap != null ? opts.vGap : 26;   // within rank (y)
+    var nodes = graph.nodes, edges = graph.edges, byId = graph.byId;
+    if (!nodes.length){ graph.width=0; graph.height=0; return graph; }
+
+    nodes.forEach(function(n){
+      if (n.w == null || n.h == null){ var d = measureNode(n); n.w = d.w; n.h = d.h; }
+    });
+
+    var outAdj={}, inAdj={}, indeg={};
+    nodes.forEach(function(n){ outAdj[n.id]=[]; inAdj[n.id]=[]; indeg[n.id]=0; });
+    edges.forEach(function(e){
+      if (byId[e.from] && byId[e.to]){ outAdj[e.from].push(e.to); inAdj[e.to].push(e.from); indeg[e.to]++; }
+    });
+
+    // longest-path ranks (Kahn topo)
+    var rank={}; nodes.forEach(function(n){ rank[n.id]=0; });
+    var indeg2={}; nodes.forEach(function(n){ indeg2[n.id]=indeg[n.id]; });
+    var q=[]; nodes.forEach(function(n){ if(indeg2[n.id]===0) q.push(n.id); });
+    var qi=0, inOrder={};
+    while (qi < q.length){
+      var u=q[qi++]; inOrder[u]=1;
+      outAdj[u].forEach(function(v){
+        if (rank[v] < rank[u]+1) rank[v]=rank[u]+1;
+        if (--indeg2[v]===0) q.push(v);
+      });
+    }
+    nodes.forEach(function(n){ if(!inOrder[n.id]){ var mx=0; inAdj[n.id].forEach(function(p){ mx=Math.max(mx,rank[p]+1); }); rank[n.id]=mx; }});
+
+    var ranksArr=[]; nodes.forEach(function(n){ var r=rank[n.id]; (ranksArr[r]=ranksArr[r]||[]).push(n.id); });
+    for (var r=0;r<ranksArr.length;r++) ranksArr[r]=ranksArr[r]||[];
+
+    var pos={}; ranksArr.forEach(function(layer){ layer.forEach(function(id,i){ pos[id]=i; }); });
+    function bary(adj){
+      for (var rr=0; rr<ranksArr.length; rr++){
+        var layer=ranksArr[rr], key={};
+        layer.forEach(function(id){
+          var nb=adj[id].map(function(x){return pos[x];}).filter(function(vv){return vv!=null;});
+          key[id]= nb.length ? nb.reduce(function(a,b){return a+b;},0)/nb.length : pos[id];
+        });
+        layer.sort(function(a,b){ return key[a]-key[b]; });
+        layer.forEach(function(id,i){ pos[id]=i; });
+      }
+    }
+    for (var s=0;s<8;s++){ bary(s%2===0 ? inAdj : outAdj); }
+
+    // X by cumulative max-width per rank
+    var rankW = ranksArr.map(function(layer){ return layer.reduce(function(m,id){ return Math.max(m, byId[id].w); }, 0); });
+    var rankCX=[], cx=0;
+    for (r=0;r<ranksArr.length;r++){
+      if (r===0) cx = rankW[0]/2;
+      else cx += rankW[r-1]/2 + hGap + rankW[r]/2;
+      rankCX[r]=cx;
+    }
+
+    // Y initial stack, then barycenter refinement w/ non-overlap
+    var Y={};
+    ranksArr.forEach(function(layer){
+      var y=0; layer.forEach(function(id){ var h=byId[id].h; Y[id]=y+h/2; y+=h+vGap; });
+    });
+    for (var sweep=0; sweep<12; sweep++){
+      var adj = sweep%2===0 ? inAdj : outAdj;
+      for (r=0;r<ranksArr.length;r++){
+        var layer=ranksArr[r];
+        var items=layer.map(function(id){
+          var nb=adj[id].map(function(x){return Y[x];}).filter(function(vv){return vv!=null;});
+          var target = nb.length ? nb.reduce(function(a,b){return a+b;},0)/nb.length : Y[id];
+          return { id:id, target:target, size:byId[id].h };
+        });
+        var placed=place1D(items, vGap);
+        layer.forEach(function(id){ Y[id]=placed[id]; });
+      }
+    }
+
+    var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    nodes.forEach(function(n){
+      n.x=rankCX[rank[n.id]]; n.y=Y[n.id];
+      minX=Math.min(minX,n.x-n.w/2); maxX=Math.max(maxX,n.x+n.w/2);
+      minY=Math.min(minY,n.y-n.h/2); maxY=Math.max(maxY,n.y+n.h/2);
+    });
+    var pad=48;
+    nodes.forEach(function(n){ n.x=n.x-minX+pad; n.y=n.y-minY+pad; });
+    graph.width=(maxX-minX)+pad*2;
+    graph.height=(maxY-minY)+pad*2;
+    graph.rank=rank; graph.ranks=ranksArr;
+    return graph;
+  }
+
+  /* ---- diff: stable identity (op:opmagic, tensor:magic) ---- */
+  function nodeSig(n){
+    if (n.kind==='op') return 'op|'+n.opcode+'|'+n.ioperands.join(',')+'>'+n.ooperands.join(',');
+    return 'tn|'+n.rows.map(function(rw){return rw[1];}).join('|')+'|'+n.nodetype;
+  }
+  function diffGraphs(A,B){
+    var aIds={}, bIds={};
+    A.nodes.forEach(function(n){ aIds[n.id]=1; });
+    B.nodes.forEach(function(n){ bIds[n.id]=1; });
+    var nodeState={}, added=0,removed=0,modified=0,same=0;
+    A.nodes.forEach(function(n){ if(!bIds[n.id]){ nodeState[n.id]='removed'; removed++; } });
+    B.nodes.forEach(function(n){
+      if (!aIds[n.id]){ nodeState[n.id]='added'; added++; }
+      else { var a=A.byId[n.id]; if (nodeSig(a)!==nodeSig(n)){ nodeState[n.id]='modified'; modified++; } else { nodeState[n.id]='same'; same++; } }
+    });
+    var aE={}, bE={};
+    A.edges.forEach(function(e){ aE[e.id]=1; });
+    B.edges.forEach(function(e){ bE[e.id]=1; });
+    var edgeState={}, eAdd=0,eRem=0,eSame=0;
+    A.edges.forEach(function(e){ if(!bE[e.id]){ edgeState[e.id]='removed'; eRem++; } });
+    B.edges.forEach(function(e){ if(!aE[e.id]){ edgeState[e.id]='added'; eAdd++; } else { edgeState[e.id]='same'; eSame++; } });
+    var all={}; Object.keys(aIds).forEach(function(k){all[k]=1;}); Object.keys(bIds).forEach(function(k){all[k]=1;});
+    return {
+      nodeState: nodeState, edgeState: edgeState,
+      stats: { nodes:{added:added,removed:removed,modified:modified,same:same,total:Object.keys(all).length},
+               edges:{added:eAdd,removed:eRem,same:eSame} }
+    };
+  }
+
+  var API = { parseGraph: parseGraph, layoutGraph: layoutGraph, diffGraphs: diffGraphs,
+              categoryOf: categoryOf, measureNode: measureNode,
+              DTYPE_NAME: DTYPE_NAME, NODETYPE_NAME: NODETYPE_NAME };
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+  root.GraphEngine = API;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+
+<script>
+/* PyPTO pass registry for GraphScope.
+   - Real pass names / stages / descriptions sourced from the pypto pipeline (docs/dev/passes).
+   - A handful of passes carry a built-in *illustrative* structural demo (transform on the tensor graph);
+     the rest are name+description only and are best viewed by loading the pass's real After_<pass>.json.
+   Demo transforms take the raw pypto JSON and return a new transformed JSON. They are heuristics meant
+   to mirror the *shape* of each pass's effect on the graph, not the exact compiler output. */
+(function (root) {
+  'use strict';
+  function clone(j) { return JSON.parse(JSON.stringify(j)); }
+  function eqArr(a, b) { return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every(function (x, i) { return x === b[i]; }); }
+  function fnOf(j) { return (j.functions && j.functions[0]) || null; }
+
+  function buildMaps(fn) {
+    var producer = {}, consumers = {}, tByMagic = {};
+    (fn.tensors || []).forEach(function (t) { tByMagic[t.magic] = t; });
+    (fn.operations || []).forEach(function (op) {
+      (op.ooperands || []).forEach(function (m) { producer[m] = op; });
+      (op.ioperands || []).forEach(function (m) { (consumers[m] = consumers[m] || []).push(op); });
+    });
+    return { producer: producer, consumers: consumers, tByMagic: tByMagic };
+  }
+  function makeResolver(remap) {
+    return function resolve(m) { var x = m, seen = {}; while (remap[x] != null && !seen[x]) { seen[x] = 1; x = remap[x]; } return x; };
+  }
+  function rewire(fn, remap) {
+    var resolve = makeResolver(remap);
+    (fn.operations || []).forEach(function (o) {
+      o.ioperands = (o.ioperands || []).map(resolve);
+      o.ooperands = (o.ooperands || []).map(resolve);
+    });
+  }
+  function dropTensors(fn, removed) { fn.tensors = (fn.tensors || []).filter(function (t) { return !removed[t.magic]; }); }
+  function dropOps(fn, removed) { fn.operations = (fn.operations || []).filter(function (o) { return !removed[o.opmagic]; }); }
+
+  /* ---- 32 · FoldNoOpReshape (alias RemoveRedundantReshape) -----------------
+     Fold VIEW/reshape ops whose single input and output tensors share the same
+     shape (a true no-op): rewire consumers to the input tensor and drop the op
+     plus its orphaned output tensor. */
+  function foldNoOpReshape(j) {
+    var fn = fnOf(j); if (!fn) return j;
+    var M = buildMaps(fn), remap = {}, remOps = {}, remTen = {};
+    (fn.operations || []).forEach(function (op) {
+      if (op.opcode !== 'VIEW') return;
+      if ((op.ioperands || []).length !== 1 || (op.ooperands || []).length !== 1) return;
+      var inM = op.ioperands[0], outM = op.ooperands[0];
+      var ti = M.tByMagic[inM], to = M.tByMagic[outM];
+      if (!ti || !to) return;
+      if (!eqArr(ti.shape, to.shape)) return;     // only genuine no-ops
+      if (to.nodetype === 2) return;              // never drop a graph output
+      remap[outM] = inM; remOps[op.opmagic] = 1; remTen[outM] = 1;
+    });
+    dropOps(fn, remOps); rewire(fn, remap); dropTensors(fn, remTen);
+    return j;
+  }
+
+  /* ---- 33 · FuseCreateAssembleToSlice --------------------------------------
+     Fuse a producer ("create") feeding an ASSEMBLE into one SLICE view,
+     eliminating the intermediate buffer. */
+  function fuseCreateAssembleToSlice(j) {
+    var fn = fnOf(j); if (!fn) return j;
+    var M = buildMaps(fn), remOps = {}, remTen = {};
+    (fn.operations || []).forEach(function (A) {
+      if (A.opcode !== 'ASSEMBLE') return;
+      if (remOps[A.opmagic]) return;
+      var ins = A.ioperands || []; if (!ins.length || !(A.ooperands || []).length) return;
+      var primary = ins[0], P = M.producer[primary];
+      if (!P || P === A || remOps[P.opmagic]) return;
+      var tin = M.tByMagic[primary];
+      if (!tin || tin.nodetype !== 0) return;                    // intermediate only
+      if ((M.consumers[primary] || []).length !== 1) return;     // tin used only by A
+      if ((P.ooperands || []).length !== 1) return;              // P produces just tin
+      // fuse P + A -> SLICE producing A's outputs directly
+      var extra = ins.slice(1);                                  // A's other inputs (if any)
+      P.opcode = 'SLICE';
+      P.ioperands = (P.ioperands || []).concat(extra);
+      P.ooperands = A.ooperands.slice();
+      if (P.op_attr && typeof P.op_attr === 'object') P.op_attr.FUSED_FROM = 'CREATE+ASSEMBLE';
+      remOps[A.opmagic] = 1; remTen[primary] = 1;
+    });
+    dropOps(fn, remOps); dropTensors(fn, remTen);
+    return j;
+  }
+
+  /* ---- 13 · OptimizeOrchTensors --------------------------------------------
+     Common-subexpression style cleanup of redundant tensor allocations: when two
+     ops have the same opcode and identical inputs, the later one is redundant —
+     remap its outputs to the first and drop it + its orphaned output tensors. */
+  function optimizeOrchTensors(j) {
+    var fn = fnOf(j); if (!fn) return j;
+    var seen = {}, remap = {}, remOps = {}, remTen = {};
+    var M = buildMaps(fn), resolve = makeResolver(remap);
+    (fn.operations || []).forEach(function (op) {
+      var io = (op.ioperands || []).map(resolve);
+      var sig = op.opcode + '|' + io.join(',') + '|' + (op.ooperands || []).length;
+      var first = seen[sig];
+      if (!first) { seen[sig] = op; return; }
+      var fout = first.ooperands || [], oout = op.ooperands || [];
+      if (fout.length !== oout.length) return;
+      var ok = true;
+      for (var i = 0; i < oout.length; i++) {
+        var ta = M.tByMagic[fout[i]], tb = M.tByMagic[oout[i]];
+        if (!ta || !tb || tb.nodetype === 2 || !eqArr(ta.shape, tb.shape)) { ok = false; break; }
+      }
+      if (!ok) return;
+      for (var k = 0; k < oout.length; k++) { remap[oout[k]] = fout[k]; remTen[oout[k]] = 1; }
+      remOps[op.opmagic] = 1;
+    });
+    dropOps(fn, remOps); rewire(fn, remap); dropTensors(fn, remTen);
+    return j;
+  }
+
+  /* ---- 05 · Simplify (dead-subexpression elimination facet) ----------------
+     Iteratively remove ops whose outputs are never consumed and are not graph
+     outputs, then drop the resulting orphan tensors. */
+  function simplify(j) {
+    var fn = fnOf(j); if (!fn) return j;
+    var changed = true, remTen = {};
+    while (changed) {
+      changed = false;
+      var M = buildMaps(fn), remOps = {};
+      (fn.operations || []).forEach(function (op) {
+        var outs = op.ooperands || []; if (!outs.length) return;
+        var live = outs.some(function (m) {
+          var t = M.tByMagic[m];
+          if (t && t.nodetype === 2) return true;          // graph output
+          return (M.consumers[m] || []).length > 0;        // consumed downstream
+        });
+        if (!live) { remOps[op.opmagic] = 1; outs.forEach(function (m) { remTen[m] = 1; }); }
+      });
+      if (Object.keys(remOps).length) { dropOps(fn, remOps); changed = true; }
+    }
+    // prune tensors with no producer, no consumer, not boundary
+    var M2 = buildMaps(fn);
+    (fn.tensors || []).forEach(function (t) {
+      if (t.nodetype === 1 || t.nodetype === 2) return;
+      if (M2.producer[t.magic]) return;
+      if ((M2.consumers[t.magic] || []).length) return;
+      remTen[t.magic] = 1;
+    });
+    dropTensors(fn, remTen);
+    return j;
+  }
+
+  // -------- full PyPTO pass table (order = pipeline order) --------
+  // g = stage group; demo = transform fn (or null = name/description only)
+  var P = [
+    ['00', 'PassManager', '框架', '组织并执行 IR 变换 Pass 的框架：属性跟踪、插桩与按策略编排的优化流水线。', null],
+    ['01', 'InlineFunctions', 'Tensor 图', '在每个调用点展开内联函数体，消除 Inline 类型函数。', null],
+    ['02', 'UnrollLoops', 'Tensor 图', '编译期展开 Unroll 循环：按每个迭代值内联循环体。', null],
+    ['03', 'CtrlFlowTransform', 'Tensor 图', '将 break/continue 转换为结构化控制流（if-else + while）。', null],
+    ['04', 'ConvertToSSA', 'Tensor 图', '转换为 SSA 形式：变量重命名、phi 节点与 iter_args。', null],
+    ['05', 'Simplify', 'Tensor 图', '代数化简：折叠算术/形状表达式与标量常量绑定。示例演示其“消除输出未被使用的死算子”一面。', simplify],
+    ['06', 'FlattenCallExpr', 'Tensor 图', '将嵌套调用表达式展平为三地址码形式。', null],
+    ['07', 'SplitChunkedLoops', '循环/作用域', '按策略将带 chunk 的循环拆分为外层/内层嵌套循环。', null],
+    ['08', 'InterchangeChunkLoops', '循环/作用域', '重排 ChunkOuter/ChunkInner 循环对，并插入 InCore 作用域。', null],
+    ['09', 'OutlineHierarchyScopes', '循环/作用域', '将 Hierarchy 作用域外提为携带 level/role 元数据的函数。', null],
+    ['10', 'OutlineIncoreScopes', '循环/作用域', '将 InCore 作用域外提为独立函数。', null],
+    ['11', 'OutlineClusterScopes', '循环/作用域', '将 Cluster 作用域外提为 Group 函数、独立 Spmd 作用域外提为 Spmd 函数。', null],
+    ['12', 'ConvertTensorToTileOps', 'Tensor→Tile', '在 InCore 函数中将 tensor 算子转换为 tile 算子，并更新编排调用点。', null],
+    ['13', 'OptimizeOrchTensors', 'Tensor→Tile', '优化编排与 InCore 间的张量缓冲使用：消除冗余分配、改善数据流。示例：合并重复计算的张量分配。', optimizeOrchTensors],
+    ['14', 'LowerCompositeOps', 'Tensor→Tile', '将复合 tile 算子分解为原语算术 tile 算子（目前处理 sin/cos）。', null],
+    ['15', 'FlattenTileNdTo2D', 'Tensor→Tile', '在 InCore 函数中把 ND（3D+）tile 算子合并末维之外的维度展平到 2D。', null],
+    ['16', 'AutoTileMatmulL0', 'Tile 优化', '对 tile.matmul 做 L0 切分：按后端 L0 容量选择 (m,n,k) 并改写为两级流水 K 循环。', null],
+    ['17', 'CanonicalizeMatSlice', 'Tile 优化', '将 Mat 驻留的 tile.slice 规范化为 tile.extract 形式，统一 Mat→Left/Right 搬移。', null],
+    ['18', 'InferTileMemorySpace', 'Tile 优化', '为 InCore 中每个 TileType 推断片上 MemorySpace，并插入 tile.move 修正不匹配。', null],
+    ['19', 'LowerTransposeLoadParamLayout', 'Tile 优化', '下降 transpose=True 的 tile.load，生成显式布局转换。', null],
+    ['20', 'ResolveBackendOpLayouts', 'Tile 优化', '修复逐元素算子的后端布局：列向量重排为行主序视图，必要时经 tile.move 转换。', null],
+    ['21', 'ExpandMixedKernel', 'Kernel 展开', '将混合 InCore 函数拆分为 AIC(Cube)+AIV(Vector) 内核并包进 Group 函数。', null],
+    ['22', 'InjectGMPipeBuffer', 'Kernel 展开', '为经 GM 路由跨核 pipe 的后端注入 __gm_pipe_buffer 工作区参数。', null],
+    ['23', 'SplitVectorKernel', 'Kernel 展开', '沿某个 tile 轴拆分向量内核，让两个 AIV lane 共享负载。', null],
+    ['24', 'NormalizeReturnOrder', '流水/顺序', '重排每个 InCore 函数的返回元组，使 return[i] 顺序规范化。', null],
+    ['25', 'LowerPipelineLoops', '流水/顺序', '在 tile 级下降 pl.pipeline：每个外层迭代复制循环体以支持 ping-pong 缓冲。', null],
+    ['26', 'CanonicalizeIOOrder', '流水/顺序', '在 Pipeline 循环体内按硬件单元阶段阶梯重排语句，使各阶段跨副本聚簇以启用双缓冲。', null],
+    ['27', 'MaterializeTensorStrides', '流水/顺序', '为每个 TensorView 填充与布局/形状匹配的规范 stride。', null],
+    ['28', 'InitMemRef', '内存', '为所有变量初始化 MemRef，并创建地址未分配的 alloc 操作。', null],
+    ['29', 'MemoryReuse', '内存', '依赖分析识别内存复用机会，移除冗余 alloc 操作。', null],
+    ['30', 'LegalizePTOBufferReuse', '内存', '拆分 MemoryReuse 遗留的、无法表达为 PTO 兼容 alloc_tile/view 的 MemRef。', null],
+    ['31', 'AllocateMemoryAddr', '内存', '为已有 alloc 操作分配真实内存地址。', null],
+    ['32', 'FoldNoOpReshape', '缓冲/Reshape 清理', '折叠既不改变物理形状也不改变分配的 reshape（即 RemoveRedundantReshape）。', foldNoOpReshape],
+    ['33', 'FuseCreateAssembleToSlice', '缓冲/Reshape 清理', '将 tensor.create + tensor.assemble 融合为单个 tensor.slice 视图，消除中间缓冲。', fuseCreateAssembleToSlice],
+    ['34', 'DeriveCallDirections', '收尾/调度', '为每个跨函数 Call 的实参推导 ArgDirection 并写入 attrs（仅改属性，不改图结构）。', null],
+    ['35', 'ExpandManualPhaseFence', '收尾/调度', '展开手动 phase fence 相关结构。', null],
+    ['36', 'CollectCommGroups', '收尾/调度', '收集通信组信息。', null],
+    ['37', 'MaterializeRuntimeScopes', '收尾/调度', '在编排函数中插入显式 AUTO RuntimeScopeStmt 节点。', null]
+  ];
+
+  var PASSES = P.map(function (r) {
+    return { num: r[0], id: r[1], name: r[1], group: r[2], desc: r[3], demo: r[4] || null, hasDemo: !!r[4] };
+  });
+  // aliases for filename detection (label seen in sample data -> canonical pass id)
+  var ALIASES = { RemoveRedundantReshape: 'FoldNoOpReshape' };
+
+  function applyPass(beforeJson, id) {
+    var p = null; for (var i = 0; i < PASSES.length; i++) { if (PASSES[i].id === id) { p = PASSES[i]; break; } }
+    if (!p || !p.demo) return null;
+    return p.demo(clone(beforeJson));
+  }
+  function getPass(id) { for (var i = 0; i < PASSES.length; i++) if (PASSES[i].id === id) return PASSES[i]; return null; }
+  function detectPassFromName(name) {
+    if (!name) return null;
+    var ids = PASSES.map(function (p) { return p.id; }).concat(Object.keys(ALIASES));
+    // longest id first so e.g. FuseCreateAssembleToSlice wins over shorter substrings
+    ids.sort(function (a, b) { return b.length - a.length; });
+    for (var i = 0; i < ids.length; i++) {
+      if (name.indexOf(ids[i]) >= 0) return ALIASES[ids[i]] || ids[i];
+    }
+    return null;
+  }
+
+  var api = { PASSES: PASSES, ALIASES: ALIASES, applyPass: applyPass, getPass: getPass, detectPassFromName: detectPassFromName, synthAfter: foldNoOpReshape };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  root.PYPTO = api;
+  root.PYPTO_PASSES = PASSES;
+  root.applyPass = applyPass;
+  root.detectPassFromName = detectPassFromName;
+  root.synthAfter = function (j) { return foldNoOpReshape(clone(j)); };
+})(typeof window !== 'undefined' ? window : this);
+
+</script>
+
+<script>
+(function(){
+'use strict';
+var E = window.GraphEngine;
+var SVGNS='http://www.w3.org/2000/svg';
+function $(s){return document.querySelector(s);}
+function el(tag,attrs,parent){var n=document.createElementNS(SVGNS,tag);if(attrs)for(var k in attrs)n.setAttribute(k,attrs[k]);if(parent)parent.appendChild(n);return n;}
+function clear(n){while(n.firstChild)n.removeChild(n.firstChild);}
+function esc(s){return String(s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+
+var CAT_COLOR={memory:'#7c8aa5',matmul:'#6366f1',elementwise:'#0ea5e9',unary:'#14b8a6',reduce:'#f59e0b',other:'#9aa3b2'};
+var CAT_LABEL={memory:'访存 (VIEW/ASSEMBLE)',matmul:'矩阵乘',elementwise:'逐元素',unary:'一元',reduce:'规约',other:'其它'};
+var DTYPE_COLOR={fp32:'#3b82f6',fp16:'#8b5cf6',bf16:'#a855f7',i32:'#10b981',i64:'#059669',bool:'#f59e0b'};
+var STATE_COLOR={added:'#16a34a',removed:'#e11d48',modified:'#d97706',same:null};
+
+var State={
+  mode:'single', colorMode:'struct',
+  graphs:{A:null,B:null},
+  scene:null,
+  diff:null,
+  view:{tx:60,ty:80,k:0.85},
+  t:0, playing:false, raf:0, loop:false,
+  selected:null, query:'', legendOff:{},
+  nodeEls:{}, edgeEls:{},
+};
+
+var svg=$('#canvas'), viewport=$('#viewport'), edgeLayer=$('#edgeLayer'), nodeLayer=$('#nodeLayer');
+
+function sizeNode(n){ var d=E.measureNode(n); n.w=d.w; n.h=d.h; }
+
+function latColor(lat,maxLat){ var t=maxLat>0?Math.min(1,lat/maxLat):0;
+  var r=Math.round(80+t*175), g=Math.round(150-t*60), b=Math.round(246-t*210); return 'rgb('+r+','+g+','+b+')'; }
+
+function nodeFill(n){
+  if(State.mode==='compare' && State.scene){ var st=State.scene.byId[n.id]&&State.scene.byId[n.id].state;
+    if(st==='added')return {fill:'var(--d-add-bg)',bd:'var(--d-add)'};
+    if(st==='removed')return {fill:'var(--d-rem-bg)',bd:'var(--d-rem)'};
+    if(st==='modified')return {fill:'var(--d-mod-bg)',bd:'var(--d-mod)'};
+  }
+  if(n.kind==='op'){
+    if(State.colorMode==='cat') return {fill:'#fff',bd:CAT_COLOR[n.category]||CAT_COLOR.other,accent:CAT_COLOR[n.category]};
+    if(State.colorMode==='lat'){ var c=latColor(n.latency||0,State.maxLat||1); return {fill:'#fff',bd:c,accent:c}; }
+    return {fill:'var(--op)',bd:'var(--op-bd)'};
+  } else {
+    if(State.colorMode==='dtype'){ var dn=E.DTYPE_NAME[n.datatype]; var dc=DTYPE_COLOR[dn]||'#94a3b8'; return {fill:'#fff',bd:dc,accent:dc}; }
+    return {fill:'var(--card)',bd:'var(--card-bd)'};
+  }
+}
+
+function rr(x,y,w,h,r){ r=Math.min(r,h/2,w/2);
+  return 'M'+(x+r)+','+y+'h'+(w-2*r)+'a'+r+','+r+' 0 0 1 '+r+','+r+'v'+(h-2*r)+'a'+r+','+r+' 0 0 1 '+(-r)+','+r+'h'+(-(w-2*r))+'a'+r+','+r+' 0 0 1 '+(-r)+','+(-r)+'v'+(-(h-2*r))+'a'+r+','+r+' 0 0 1 '+r+','+(-r)+'z'; }
+function rtop(x,y,w,h,r){ r=Math.min(r,h,w/2);
+  return 'M'+x+','+(y+h)+'V'+(y+r)+'a'+r+','+r+' 0 0 1 '+r+','+(-r)+'h'+(w-2*r)+'a'+r+','+r+' 0 0 1 '+r+','+r+'V'+(y+h)+'z'; }
+
+function buildNode(n){
+  var g=el('g',{'class':'node','data-id':n.id});
+  g.__n=n;
+  if(n.kind==='op') buildOp(g,n); else buildTensor(g,n);
+  el('circle',{cx:0,cy:n.h/2,r:3.4,fill:'var(--port)',stroke:'var(--port-bd)','stroke-width':1.4,'class':'port'},g);
+  el('circle',{cx:n.w,cy:n.h/2,r:3.4,fill:'var(--port)',stroke:'var(--port-bd)','stroke-width':1.4,'class':'port'},g);
+  var ring=el('rect',{x:-4,y:-4,width:n.w+8,height:n.h+8,rx:(n.kind==='op'?13:16),fill:'none',stroke:'var(--accent)','stroke-width':2,'class':'selring'},g);
+  ring.style.opacity='0';
+  g.addEventListener('click',function(ev){ev.stopPropagation();selectNode(n.id);});
+  nodeLayer.appendChild(g);
+  State.nodeEls[n.id]=g;
+  return g;
+}
+
+function buildOp(g,n){
+  var c=nodeFill(n);
+  var tab=Math.max(40, String(n.opmagic).length*8+18);
+  el('path',{d:rr(0,0,n.w,n.h,9),fill:c.fill,stroke:c.bd,'stroke-width':1,'class':'body','filter':'url(#cardShadow)'},g);
+  el('path',{d:rr(n.w-tab-9,0,tab+9,n.h,9),fill:'var(--op-tab)',stroke:'none','class':'tab'},g);
+  el('line',{x1:n.w-tab,y1:5,x2:n.w-tab,y2:n.h-5,stroke:'var(--op-div)','stroke-width':1},g);
+  if(c.accent){ el('rect',{x:0,y:0,width:4,height:n.h,rx:2,fill:c.accent,'class':'accent'},g); }
+  var lab=el('text',{x:13,y:n.h/2,'font-family':'var(--sans)','font-size':13,'font-weight':700,fill:'var(--op-ink)','class':'lab'},g);
+  lab.textContent=n.title;
+  var idt=el('text',{x:n.w-tab/2,y:n.h/2,'text-anchor':'middle','font-family':'var(--mono)','font-size':11.5,fill:'var(--op-id)'},g);
+  idt.textContent=n.opmagic;
+}
+
+function buildTensor(g,n){
+  var c=nodeFill(n);
+  var hdH=34, rowH=24;
+  el('path',{d:rr(0,0,n.w,n.h,12),fill:c.fill,stroke:c.bd,'stroke-width':1,'class':'body','filter':(n.boundary?'url(#cardShadowLg)':'url(#cardShadow)')},g);
+  el('path',{d:rtop(0,0,n.w,hdH,12),fill:'var(--card-hd)','class':'hdband'},g);
+  el('line',{x1:0,y1:hdH,x2:n.w,y2:hdH,stroke:'var(--line2)','stroke-width':1},g);
+  if(n.boundary && State.mode!=='compare'){ el('path',{d:rtop(0,0,n.w,4,12),fill:'var(--green)','class':'gbar'},g); }
+  if(c.accent){ el('rect',{x:0,y:hdH,width:4,height:n.h-hdH,fill:c.accent,'class':'accent'},g); }
+  var tt=el('text',{x:14,y:hdH/2+ (n.boundary&&State.mode!=='compare'?2:0),'font-family':'var(--sans)','font-size':13,'font-weight':700,fill:'var(--ink)','class':'lab'},g);
+  tt.textContent=n.title;
+  var bw=Math.max(20,String(n.magic).length*7+10);
+  el('rect',{x:n.w-12-bw,y:8,width:bw,height:19,rx:6,fill:'#edeef2',stroke:'#e2e4ea','stroke-width':1,'class':'badge'},g);
+  var bt=el('text',{x:n.w-12-bw/2,y:8+19/2,'text-anchor':'middle','font-family':'var(--mono)','font-size':11,'font-weight':600,fill:'#5b6472'},g);
+  bt.textContent=n.magic;
+  var valX=Math.min(104, 16+ maxLabelW(n.rows)+12);
+  for(var i=0;i<n.rows.length;i++){
+    var ry=hdH+ i*rowH + rowH/2 + 4;
+    var k=el('text',{x:16,y:ry,'font-family':'var(--sans)','font-size':11.5,fill:'var(--ink2)'},g); k.textContent=n.rows[i][0]+':';
+    var v=el('text',{x:valX,y:ry,'font-family':'var(--mono)','font-size':12,fill:'var(--val)'},g); v.textContent=n.rows[i][1];
+  }
+}
+function maxLabelW(rows){ var m=0; for(var i=0;i<rows.length;i++) m=Math.max(m, rows[i][0].length*6.6); return m; }
+
+function edgePath(sx,sy,tx,ty){
+  var dx=Math.max(28,Math.abs(tx-sx)*0.42);
+  return 'M'+sx+','+sy+'C'+(sx+dx)+','+sy+' '+(tx-dx)+','+ty+' '+tx+','+ty;
+}
+function buildEdge(se){
+  var id=se.edge.id;
+  var p=el('path',{d:'','fill':'none',stroke:'var(--edge)','stroke-width':1.4,'class':'edge','data-id':id});
+  edgeLayer.appendChild(p);
+  State.edgeEls[id]=p;
+  return p;
+}
+
+function buildSceneSingle(g){
+  sizeAll(g); E.layoutGraph(g,{});
+  var nodes=g.nodes.map(function(n){return {node:n, ax:n.x, ay:n.y, bx:n.x, by:n.y, state:'same'};});
+  var byId={}; nodes.forEach(function(s){byId[s.node.id]=s;});
+  var edges=g.edges.map(function(e){return {edge:e, fromId:e.from, toId:e.to, state:'same', g:g};});
+  State.scene={nodes:nodes,edges:edges,byId:byId,A:g,B:null,width:g.width,height:g.height};
+  State.diff=null;
+  computeMax();
+  render();
+  setT(0,true);
+  fit();
+}
+
+function buildSceneCompare(A,B){
+  sizeAll(A); sizeAll(B);
+  E.layoutGraph(A,{}); E.layoutGraph(B,{});
+  var diff=E.diffGraphs(A,B); State.diff=diff;
+  var common=[]; A.nodes.forEach(function(n){ if(B.byId[n.id]) common.push(n.id); });
+  var ca={x:0,y:0}, cb={x:0,y:0};
+  common.forEach(function(id){ ca.x+=A.byId[id].x; ca.y+=A.byId[id].y; cb.x+=B.byId[id].x; cb.y+=B.byId[id].y; });
+  var k=common.length||1; ca.x/=k;ca.y/=k;cb.x/=k;cb.y/=k;
+  var off={x:ca.x-cb.x, y:ca.y-cb.y};
+
+  var ids={}; A.nodes.forEach(function(n){ids[n.id]=1;}); B.nodes.forEach(function(n){ids[n.id]=1;});
+  var nodes=[], byId={};
+  Object.keys(ids).forEach(function(id){
+    var a=A.byId[id], b=B.byId[id];
+    var st=diff.nodeState[id]||'same';
+    var node=b||a;
+    var ax=a?a.x:(b.x+off.x), ay=a?a.y:(b.y+off.y);
+    var bx=b?b.x+off.x:a.x, by=b?b.y+off.y:a.y;
+    var s={node:node, ax:ax,ay:ay,bx:bx,by:by, state:st, hasA:!!a, hasB:!!b};
+    nodes.push(s); byId[id]=s;
+  });
+  var eids={}; var eMap={};
+  A.edges.forEach(function(e){eids[e.id]=1;eMap[e.id]=eMap[e.id]||e;});
+  B.edges.forEach(function(e){eids[e.id]=1;eMap[e.id]=eMap[e.id]||e;});
+  var edges=Object.keys(eids).map(function(id){var e=eMap[id];return {edge:e,fromId:e.from,toId:e.to,state:diff.edgeState[id]||'same'};});
+
+  var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  nodes.forEach(function(s){ var w=s.node.w,h=s.node.h;
+    [[s.ax,s.ay],[s.bx,s.by]].forEach(function(p){ minX=Math.min(minX,p[0]-w/2);maxX=Math.max(maxX,p[0]+w/2);minY=Math.min(minY,p[1]-h/2);maxY=Math.max(maxY,p[1]+h/2);});
+  });
+  State.scene={nodes:nodes,edges:edges,byId:byId,A:A,B:B,off:off,
+    width:maxX-minX, height:maxY-minY, minX:minX, minY:minY};
+  computeMax();
+  render();
+  renderDiffPanel();
+  setT(0,true);
+  fit();
+}
+
+function sizeAll(g){ g.nodes.forEach(sizeNode); }
+function computeMax(){ var m=0; (State.graphs.A?State.graphs.A.nodes:[]).concat(State.graphs.B?State.graphs.B.nodes:[]).forEach(function(n){ if(n.kind==='op')m=Math.max(m,n.latency||0);}); State.maxLat=m; }
+
+function render(){
+  clear(edgeLayer); clear(nodeLayer); State.nodeEls={}; State.edgeEls={};
+  State.scene.edges.forEach(buildEdge);
+  State.scene.nodes.forEach(function(s){ buildNode(s.node); });
+  applyColors();
+  frame();
+  renderOverview(); renderLegend();
+}
+
+function applyColors(){
+  State.scene.nodes.forEach(function(s){
+    var n=s.node, g=State.nodeEls[n.id]; if(!g)return;
+    var c=nodeFill(n);
+    var body=g.querySelector('.body'); if(body){ body.setAttribute('fill',c.fill); body.setAttribute('stroke',c.bd); }
+    var acc=g.querySelector('.accent');
+    if(c.accent){ if(!acc){ acc=el('rect',{'class':'accent',fill:c.accent}, g); if(n.kind==='op'){acc.setAttribute('x',0);acc.setAttribute('y',0);acc.setAttribute('width',4);acc.setAttribute('height',n.h);acc.setAttribute('rx',2);}else{acc.setAttribute('x',0);acc.setAttribute('y',34);acc.setAttribute('width',4);acc.setAttribute('height',n.h-34);} g.insertBefore(acc, g.querySelector('.lab')); } else { acc.setAttribute('fill',c.accent); acc.style.display=''; } }
+    else if(acc){ acc.style.display='none'; }
+  });
+}
+
+function lerp(a,b,t){return a+(b-a)*t;}
+function ease(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+
+function nodePos(s,t){ return {x:lerp(s.ax,s.bx,t), y:lerp(s.ay,s.by,t)}; }
+function nodeOpacity(s,t){
+  if(State.mode!=='compare'||s.state==='same'||s.state==='modified') return 1;
+  if(s.state==='removed'){ return t<=0.5? 1 : Math.max(0, 1-(t-0.5)/0.5); }
+  if(s.state==='added'){ return t<0.5? 0 : Math.min(1,(t-0.5)/0.5); }
+  return 1;
+}
+
+function frame(){
+  var t=ease(State.t);
+  var pos={};
+  State.scene.nodes.forEach(function(s){
+    var n=s.node, g=State.nodeEls[n.id]; if(!g)return;
+    var p=nodePos(s,t); pos[n.id]=p;
+    g.setAttribute('transform','translate('+(p.x-n.w/2)+','+(p.y-n.h/2)+')');
+    g.style.opacity=String(nodeOpacity(s,t) * dimFactor(n.id));
+  });
+  State.scene.edges.forEach(function(se){
+    var p=State.edgeEls[se.edge.id]; if(!p)return;
+    var a=pos[se.fromId], b=pos[se.toId];
+    var na=State.scene.byId[se.fromId], nb=State.scene.byId[se.toId];
+    if(!a||!b||!na||!nb){ p.style.display='none'; return; } p.style.display='';
+    var sx=a.x+na.node.w/2, sy=a.y, tx=b.x-nb.node.w/2, ty=b.y;
+    p.setAttribute('d',edgePath(sx,sy,tx,ty));
+    var col='var(--edge)', wdt=1.4, op=1, dash='';
+    if(State.mode==='compare'){
+      if(se.state==='added'){ col='var(--d-add)'; op=(t<0.5?0:Math.min(1,(t-0.5)/0.5)); }
+      else if(se.state==='removed'){ col='var(--d-rem)'; op=(t<=0.5?1:Math.max(0,1-(t-0.5)/0.5)); dash='5 4'; }
+    }
+    op*=dimFactorEdge(se);
+    p.setAttribute('stroke',col); p.setAttribute('stroke-width',wdt); p.style.opacity=String(op);
+    if(dash)p.setAttribute('stroke-dasharray',dash); else p.removeAttribute('stroke-dasharray');
+  });
+  applyView();
+}
+
+function dimFactor(id){
+  if(State.selected){ if(!State.hiSet[id]) return 0.16; }
+  if(State.query){ if(!State.matchSet[id]) return State.selected?0.16:0.22; }
+  return 1;
+}
+function dimFactorEdge(se){
+  if(State.selected){ if(!(State.hiSet[se.fromId]&&State.hiSet[se.toId])) return 0.10; }
+  if(State.query){ if(!(State.matchSet[se.fromId]||State.matchSet[se.toId])) return 0.12; }
+  return 1;
+}
+
+function selectNode(id){
+  if(State.selected===id){ State.selected=null; State.hiSet={}; }
+  else {
+    State.selected=id;
+    State.hiSet=ancestry(id);
+  }
+  Object.keys(State.nodeEls).forEach(function(k){ var r=State.nodeEls[k].querySelector('.selring'); if(r)r.style.opacity=(k===State.selected?'1':'0'); });
+  renderInspector(id);
+  frame();
+}
+function ancestry(id){
+  var set={}; set[id]=1;
+  var Aedges=State.scene.edges;
+  var up={},down={};
+  Aedges.forEach(function(se){ (down[se.fromId]=down[se.fromId]||[]).push(se.toId); (up[se.toId]=up[se.toId]||[]).push(se.fromId); });
+  var stack=[id]; while(stack.length){var u=stack.pop();(up[u]||[]).forEach(function(v){if(!set[v]){set[v]=1;stack.push(v);}});}
+  stack=[id]; while(stack.length){var u2=stack.pop();(down[u2]||[]).forEach(function(v){if(!set[v]){set[v]=1;stack.push(v);}});}
+  return set;
+}
+
+function applyView(){ viewport.setAttribute('transform','translate('+State.view.tx+','+State.view.ty+') scale('+State.view.k+')'); }
+function stageSize(){ var r=svg.getBoundingClientRect(); return {w:r.width||1200,h:r.height||700}; }
+function fit(){
+  var sc=State.scene; if(!sc)return;
+  var W = sc.width, H = sc.height;
+  var ox= State.mode==='compare'? sc.minX : 0;
+  var oy= State.mode==='compare'? sc.minY : 0;
+  var s=stageSize(); var pad=46; var railW=330;
+  var availW=s.w-pad*2-railW, availH=s.h-pad*2-(State.mode==='compare'?90:0);
+  var k=Math.min(availW/W, availH/H); k=Math.max(0.06,Math.min(k,1.1));
+  State.view.k=k;
+  State.view.tx = pad + (availW-W*k)/2 - ox*k;
+  State.view.ty = pad + (availH-H*k)/2 - oy*k;
+  applyView();
+}
+function zoomAt(cx,cy,f){ var v=State.view; var nk=Math.max(0.05,Math.min(3,v.k*f)); var wx=(cx-v.tx)/v.k, wy=(cy-v.ty)/v.k; v.k=nk; v.tx=cx-wx*nk; v.ty=cy-wy*nk; applyView(); }
+
+function setT(t,silent){ State.t=Math.max(0,Math.min(1,t)); $('#range').value=String(Math.round(State.t*1000)); updatePhase(); frame(); }
+function updatePhase(){ var p=$('#phase'); var t=State.t; if(t<0.02)p.textContent='Before'; else if(t>0.98)p.textContent='After'; else p.textContent='过渡中 · '+Math.round(t*100)+'%'; }
+function play(){ if(State.playing){stop();return;} if(State.t>=1)State.t=0; State.playing=true; setPlayIcon(true); var last=performance.now();
+  function step(now){ if(!State.playing)return; var dt=(now-last)/1000; last=now; State.t+=dt/2.4; if(State.t>=1){ State.t=1; frame(); $('#range').value='1000'; updatePhase(); if(State.loop){State.t=0;}else{stop();return;} } setT(State.t,true); State.raf=requestAnimationFrame(step); }
+  State.raf=requestAnimationFrame(step);
+}
+function stop(){ State.playing=false; setPlayIcon(false); if(State.raf)cancelAnimationFrame(State.raf); }
+function setPlayIcon(playing){ $('#playIcon').innerHTML= playing? '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>':'<path d="M8 5v14l11-7z"/>'; }
+
+function renderInspector(id){
+  var s=State.scene.byId[id]; var b=$('#inspBody'); var ttl=$('#inspTitle');
+  if(!s){ b.innerHTML='<div class="empty">点击任意算子或张量节点查看详情。</div>'; ttl.textContent='节点检查器'; return; }
+  var n=s.node;
+  if(n.kind==='op'){
+    ttl.textContent='算子 · '+n.opcode;
+    var rows=[['opcode',n.opcode],['opmagic',n.opmagic],['类别',CAT_LABEL[n.category]||n.category],['latency',(n.latency!=null?n.latency:'—')],['semantic',n.semantic||'—'],['输入张量',n.ioperands.join(', ')||'—'],['输出张量',n.ooperands.join(', ')||'—']];
+    var attrs=Object.keys(n.opAttr||{});
+    var html='<div class="kv">';
+    rows.forEach(function(r){ html+='<div class="k">'+esc(r[0])+'</div><div class="v">'+esc(r[1])+'</div>'; });
+    html+='</div>';
+    if(attrs.length){ html+='<div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--line2)"><div class="k" style="margin-bottom:5px">op_attr</div>'; attrs.forEach(function(a){ html+='<div class="v" style="font-size:11.5px">'+esc(a)+': '+esc(String(n.opAttr[a]))+'</div>'; }); html+='</div>'; }
+    if(State.mode==='compare') html+=stateBadge(s.state);
+    b.innerHTML=html;
+  } else {
+    ttl.textContent='张量 · '+(n.symbol||'Tensor');
+    var nt=E.NODETYPE_NAME[n.nodetype]; var ntZh={internal:'内部',input:'图输入 (incast)',output:'图输出 (outcast)'}[nt]||nt;
+    var html2='<div class="pill-ty" style="background:'+(n.boundary?'var(--green-soft)':'#eef0f4')+';color:'+(n.boundary?'#15803d':'var(--ink2)')+';margin-bottom:9px">'+esc(ntZh)+'</div>';
+    var rows2=[['symbol',n.symbol||'(匿名)'],['magic',n.magic],['rawmagic',n.rawmagic]].concat(n.rows.map(function(r){return [r[0],r[1]];}));
+    html2+='<div class="kv">'; rows2.forEach(function(r){ html2+='<div class="k">'+esc(r[0])+'</div><div class="v">'+esc(r[1])+'</div>'; }); html2+='</div>';
+    if(State.mode==='compare') html2+=stateBadge(s.state);
+    b.innerHTML=html2;
+  }
+}
+function stateBadge(st){ var m={added:['新增','var(--d-add-bg)','#15803d'],removed:['删除','var(--d-rem-bg)','#be123c'],modified:['修改','var(--d-mod-bg)','#b45309'],same:['未变化','#eef0f4','var(--ink2)']}[st]||['—','#eef0f4','var(--ink2)'];
+  return '<div class="pill-ty" style="background:'+m[1]+';color:'+m[2]+';margin-top:10px">差异状态：'+m[0]+'</div>'; }
+
+function renderOverview(){
+  var g=State.graphs.A; if(!g){$('#overview').innerHTML='';return;}
+  var c=g.counts;
+  var html='<div class="kv">'
+    +'<div class="k">基准图</div><div class="v">'+esc(g.label||'—')+'</div>'
+    +'<div class="k">算子节点</div><div class="v">'+c.ops+'</div>'
+    +'<div class="k">张量节点</div><div class="v">'+c.tensors+'</div>'
+    +'<div class="k">连边</div><div class="v">'+c.edges+'</div>'
+    +'<div class="k">图输入</div><div class="v">'+c.inputs+'</div>'
+    +'<div class="k">图输出</div><div class="v">'+c.outputs+'</div>';
+  if(State.graphs.B){ html+='<div class="k">对比图</div><div class="v">'+esc(State.graphs.B.label||'—')+'</div>'; }
+  html+='</div>';
+  $('#overview').innerHTML=html;
+}
+
+function renderLegend(){
+  var L=$('#legend'); var rows=[];
+  if(State.mode==='compare'){
+    $('#legTitle').textContent='差异图例';
+    rows=[['added','新增','var(--d-add-bg)'],['removed','删除','var(--d-rem-bg)'],['modified','修改','var(--d-mod-bg)'],['same','未变化','#fff']];
+    L.innerHTML=rows.map(function(r){return '<div class="legrow"><span class="sw" style="background:'+r[2]+';border-color:'+(STATE_COLOR[r[0]]||'#e4e6ec')+'"></span>'+r[1]+'</div>';}).join('');
+    return;
+  }
+  if(State.colorMode==='cat'){ $('#legTitle').textContent='算子类别';
+    L.innerHTML=Object.keys(CAT_LABEL).map(function(k){return '<div class="legrow" data-leg="cat:'+k+'"><span class="sw" style="background:#fff;border-color:'+CAT_COLOR[k]+';border-width:2px"></span>'+CAT_LABEL[k]+'</div>';}).join('');
+  } else if(State.colorMode==='dtype'){ $('#legTitle').textContent='数据类型';
+    L.innerHTML=Object.keys(DTYPE_COLOR).map(function(k){return '<div class="legrow"><span class="sw" style="background:#fff;border-color:'+DTYPE_COLOR[k]+';border-width:2px"></span>'+k+'</div>';}).join('');
+  } else if(State.colorMode==='lat'){ $('#legTitle').textContent='延迟热度';
+    L.innerHTML='<div class="legrow"><span class="sw" style="background:rgb(80,150,246)"></span>低延迟</div><div class="legrow"><span class="sw" style="background:rgb(255,90,36)"></span>高延迟 (max '+(State.maxLat||0)+')</div>';
+  } else { $('#legTitle').textContent='图例';
+    L.innerHTML=''
+     +'<div class="legrow"><span class="sw" style="background:var(--op);border-color:var(--op-bd)"></span>算子节点 (TILE_*)</div>'
+     +'<div class="legrow"><span class="sw" style="background:#fff;border-color:var(--card-bd)"></span>张量节点</div>'
+     +'<div class="legrow"><span class="sw" style="background:#fff;border-top:3px solid var(--green)"></span>图输入/输出张量</div>';
+  }
+}
+
+function renderDiffPanel(){
+  if(!State.diff){return;}
+  var s=State.diff.stats;
+  $('#diffCard').style.display=''; $('#diffListCard').style.display='';
+  function bar(label,val,color,total){ var pct=total?Math.round(val/total*100):0; return '<div class="barrow"><span class="lbl">'+label+'</span><span class="track"><span class="fill" style="width:'+pct+'%;background:'+color+'"></span></span><span class="num">'+val+'</span></div>'; }
+  var tot=s.nodes.total||1;
+  $('#diffStats').innerHTML=
+    bar('新增节点',s.nodes.added,'var(--d-add)',tot)+
+    bar('删除节点',s.nodes.removed,'var(--d-rem)',tot)+
+    bar('修改节点',s.nodes.modified,'var(--d-mod)',tot)+
+    bar('保持不变',s.nodes.same,'#cbd5e1',tot)+
+    '<div class="edgesum">连边：<span style="color:#16a34a">+'+s.edges.added+'</span> &nbsp; <span style="color:#e11d48">−'+s.edges.removed+'</span> &nbsp; ='+s.edges.same+'</div>';
+
+  var list=$('#diffList'); var items=[];
+  State.scene.nodes.forEach(function(sc){ if(sc.state!=='same') items.push(sc); });
+  items.sort(function(a,b){ var ord={removed:0,added:1,modified:2}; return ord[a.state]-ord[b.state]; });
+  $('#chgCount').textContent=items.length+' 项';
+  list.innerHTML=items.map(function(sc){
+    var n=sc.node; var col=STATE_COLOR[sc.state]||'#94a3b8';
+    var tyzh={added:'新增',removed:'删除',modified:'修改'}[sc.state];
+    var nm=(n.kind==='op'?n.title:(n.symbol||'Tensor')+' ('+n.rawmagic+')');
+    return '<div class="chgitem" data-id="'+n.id+'"><span class="sw" style="background:'+col+'"></span><span class="nm">'+esc(nm)+'</span><span class="ty">'+tyzh+'</span></div>';
+  }).join('') || '<div class="empty">两图一致，无差异。</div>';
+  Array.prototype.forEach.call(list.querySelectorAll('.chgitem'),function(it){ it.addEventListener('click',function(){ selectNode(it.getAttribute('data-id')); centerOn(it.getAttribute('data-id')); }); });
+}
+function centerOn(id){ var s=State.scene.byId[id]; if(!s)return; var p=nodePos(s,ease(State.t)); var ss=stageSize(); State.view.tx=ss.w/2 - p.x*State.view.k - 165; State.view.ty=ss.h/2 - p.y*State.view.k; applyView(); }
+
+function applyFilters(){
+  var q=State.query.toLowerCase(); State.matchSet={};
+  if(q){ State.scene.nodes.forEach(function(s){ var n=s.node; var hay=(n.title+' '+(n.symbol||'')+' '+(n.opcode||'')+' '+(n.magic||'')+' '+(n.opmagic||'')+' '+(n.rawmagic||'')).toLowerCase(); if(hay.indexOf(q)>=0)State.matchSet[n.id]=1; }); }
+  frame();
+}
+
+function loadGraphA(g){ State.graphs.A=g; if(State.mode==='single'){ buildSceneSingle(g);} else { if(State.graphs.B)buildSceneCompare(g,State.graphs.B); else buildSceneSingle(g);} renderOverview(); }
+function loadGraphB(g){ State.graphs.B=g; if(State.graphs.A){ State.mode='compare'; syncModeUI(); buildSceneCompare(State.graphs.A,g);} renderOverview(); }
+function readFile(file,cb){ var r=new FileReader(); r.onload=function(){ try{ var j=JSON.parse(r.result); cb(j,file.name);}catch(e){ toast('JSON 解析失败：'+e.message);} }; r.readAsText(file); }
+
+function toast(msg){ var t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t.__h); t.__h=setTimeout(function(){t.classList.remove('show');},2600); }
+
+function setMode(m){ if(m===State.mode)return; State.mode=m; stop(); setT(0,true); syncModeUI();
+  if(m==='compare'){ if(State.graphs.A&&State.graphs.B)buildSceneCompare(State.graphs.A,State.graphs.B); else if(State.graphs.A){buildSceneSingle(State.graphs.A); toast('选择一个 PyPTO Pass 点「应用 Pass」，或「载入对比图」载入真实 After');} }
+  else { if(State.graphs.A)buildSceneSingle(State.graphs.A); }
+}
+function syncModeUI(){
+  Array.prototype.forEach.call($('#modeSeg').children,function(b){ b.classList.toggle('on', b.dataset.mode===State.mode); });
+  var cmp=State.mode==='compare';
+  $('#loadB').style.display=cmp?'':'none';
+  $('#passSel').style.display=cmp?'':'none';
+  $('#applyPass').style.display=cmp?'':'none';
+  $('#passCard').style.display=cmp?'':'none';
+  $('#scrub').classList.toggle('show',cmp);
+  $('#loadAlbl').textContent=cmp?'载入基准图 (Before)':'载入基准图';
+  $('#diffCard').style.display=(cmp&&State.diff)?'':'none';
+  $('#diffListCard').style.display=(cmp&&State.diff)?'':'none';
+  if(cmp) renderPassCard();
+  if(!cmp){ State.diff=null; }
+  renderLegend();
+}
+
+$('#modeSeg').addEventListener('click',function(e){var b=e.target.closest('button');if(b)setMode(b.dataset.mode);});
+$('#loadA').onclick=function(){$('#fileA').click();};
+$('#loadB').onclick=function(){$('#fileB').click();};
+$('#fileA').onchange=function(e){var f=e.target.files[0];if(f)readFile(f,function(j,name){loadGraphA(E.parseGraph(j,name));toast('已载入基准图：'+name);});};
+$('#fileB').onchange=function(e){var f=e.target.files[0];if(f)readFile(f,function(j,name){var det=window.detectPassFromName(name); if(det){$('#passSel').value=det;} loadGraphB(E.parseGraph(j,name)); renderPassCard(); toast('已载入对比图：'+name+(det?(' · 识别为 '+det):''));});};
+
+function populatePassSelector(){
+  var sel=$('#passSel'); if(!sel||!window.PYPTO_PASSES) return;
+  var groups=[], byG={};
+  window.PYPTO_PASSES.forEach(function(p){ if(!byG[p.group]){byG[p.group]=[];groups.push(p.group);} byG[p.group].push(p); });
+  sel.innerHTML=groups.map(function(g){
+    return '<optgroup label="'+esc(g)+'">'+byG[g].map(function(p){
+      return '<option value="'+esc(p.id)+'">'+esc(p.num+' · '+p.name)+(p.hasDemo?'  ●':'')+'</option>';
+    }).join('')+'</optgroup>';
+  }).join('');
+  sel.value='FoldNoOpReshape';
+}
+function currentPassObj(){ return window.PYPTO?window.PYPTO.getPass($('#passSel').value):null; }
+function renderPassCard(){
+  var p=currentPassObj(), bd=$('#passBody'), hd=$('#passHd'), bg=$('#passBadge');
+  if(!p||!bd){ if(bd)bd.innerHTML=''; return; }
+  hd.textContent=p.num+' · '+p.name;
+  bg.textContent=p.hasDemo?'内置示例':'仅说明';
+  bg.style.color=p.hasDemo?'#15803d':'var(--ink2)';
+  bg.style.background=p.hasDemo?'var(--green-soft)':'#f0f1f5';
+  var note=p.hasDemo
+    ? '点「应用 Pass」对当前基准图运行该示例变换并查看前后差异与动画。'
+    : '该 Pass 暂无内置示例;请用「载入对比图」载入它的真实 After_'+p.name+'_*.json 查看精确差异。';
+  bd.innerHTML='<div style="margin-bottom:8px;color:var(--ink)">'+esc(p.desc)+'</div>'+
+    '<div style="padding-top:8px;border-top:1px solid var(--line2);color:var(--ink3);font-size:11.5px">阶段：'+esc(p.group)+'</div>'+
+    '<div style="margin-top:6px;font-size:11.5px;color:var(--ink2)">'+note+'</div>';
+}
+$('#passSel').onchange=renderPassCard;
+$('#applyPass').onclick=function(){
+  if(!State.graphs.A){ toast('请先载入基准图'); return; }
+  var p=currentPassObj(); if(!p){ toast('请选择一个 Pass'); return; }
+  if(!p.demo){ toast('“'+p.name+'” 暂无内置示例，请用「载入对比图」载入真实 After 文件'); renderPassCard(); return; }
+  var after=window.applyPass(State.graphs.A.rawJSON, p.id);
+  if(!after){ toast('该 Pass 生成失败'); return; }
+  loadGraphB(E.parseGraph(after,'After · '+p.name+' (示例)'));
+  renderPassCard();
+  var s=State.diff&&State.diff.stats;
+  if(s && s.nodes.added===0 && s.nodes.removed===0 && s.nodes.modified===0)
+    toast('“'+p.name+'” 已运行：本计算图中无可优化点，结构未变化（属正常）');
+  else
+    toast('已应用 '+p.name+'，拖动时间轴或按 ▶ 查看前后变化');
+};
+$('#fitBtn').onclick=fit;
+$('#colorMode').onchange=function(e){ State.colorMode=e.target.value; render(); };
+$('#search').oninput=function(e){ State.query=e.target.value.trim(); applyFilters(); };
+$('#zoomIn').onclick=function(){var s=stageSize();zoomAt(s.w/2,s.h/2,1.2);};
+$('#zoomOut').onclick=function(){var s=stageSize();zoomAt(s.w/2,s.h/2,1/1.2);};
+$('#zoomReset').onclick=fit;
+$('#playBtn').onclick=play;
+$('#toStart').onclick=function(){stop();setT(0);};
+$('#toEnd').onclick=function(){stop();setT(1);};
+$('#range').oninput=function(e){stop();setT(e.target.value/1000);};
+$('#loopChk').onchange=function(e){State.loop=e.target.checked;};
+
+var dragging=false,lx=0,ly=0,moved=0;
+svg.addEventListener('mousedown',function(e){dragging=true;moved=0;lx=e.clientX;ly=e.clientY;svg.classList.add('grabbing');});
+window.addEventListener('mousemove',function(e){if(!dragging)return;var dx=e.clientX-lx,dy=e.clientY-ly;moved+=Math.abs(dx)+Math.abs(dy);State.view.tx+=dx;State.view.ty+=dy;lx=e.clientX;ly=e.clientY;applyView();});
+window.addEventListener('mouseup',function(){dragging=false;svg.classList.remove('grabbing');});
+svg.addEventListener('click',function(){ if(moved<4 && State.selected){ selectNode(State.selected); } });
+svg.addEventListener('wheel',function(e){e.preventDefault();var r=svg.getBoundingClientRect();zoomAt(e.clientX-r.left,e.clientY-r.top,e.deltaY<0?1.12:1/1.12);},{passive:false});
+
+window.addEventListener('keydown',function(e){
+  if(e.target.tagName==='INPUT')return;
+  if(State.mode==='compare'){
+    if(e.code==='Space'){e.preventDefault();play();return;}
+    if(e.key==='ArrowRight'){stop();setT(State.t+0.05);return;}
+    if(e.key==='ArrowLeft'){stop();setT(State.t-0.05);return;}
+  }
+  if(e.key==='f'||e.key==='F'){fit();}
+});
+
+var dropEl=$('#drop');
+window.addEventListener('dragover',function(e){e.preventDefault();dropEl.classList.add('show');$('#dropSub').textContent=(State.mode==='compare'&&State.graphs.A)?'将解析为对比图 (After)':'将解析为基准图';});
+window.addEventListener('dragleave',function(e){if(e.relatedTarget===null||e.clientX<=0||e.clientY<=0)dropEl.classList.remove('show');});
+window.addEventListener('drop',function(e){e.preventDefault();dropEl.classList.remove('show');var f=e.dataTransfer.files[0];if(!f)return;readFile(f,function(j,name){var g=E.parseGraph(j,name);if(State.mode==='compare'&&State.graphs.A){var det=window.detectPassFromName(name);if(det){$('#passSel').value=det;}loadGraphB(g);renderPassCard();toast('已载入对比图：'+name+(det?(' · 识别为 '+det):''));}else{loadGraphA(g);toast('已载入：'+name);}});});
+
+window.addEventListener('resize',function(){ if(State.scene)applyView(); });
+
+State.hiSet={}; State.matchSet={};
+function boot(){
+  try{
+    populatePassSelector(); renderPassCard();
+    var sample=JSON.parse($('#sample-data').textContent);
+    var g=E.parseGraph(sample,'Before · RemoveRedundantReshape');
+    loadGraphA(g);
+  }catch(err){ toast('示例图载入失败：'+err.message); console.error(err); }
+}
+boot();
+window.__GS={State:State,E:E};
+})();
+</script>
+</body>
+</html>
